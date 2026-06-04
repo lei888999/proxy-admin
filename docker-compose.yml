@@ -1,0 +1,24 @@
+services:
+  sing-box-admin:
+    build:
+      context: .
+      args:
+        # Override to pin a sing-box release, e.g. ghcr.io/sagernet/sing-box:v1.11.4
+        SING_BOX_IMAGE: ${SING_BOX_IMAGE:-ghcr.io/sagernet/sing-box:latest}
+    image: sing-box-admin:latest
+    container_name: sing-box-admin
+    restart: unless-stopped
+    # Host networking so the panel-managed sing-box can bind proxy ports directly
+    # on the VPS without per-port mappings. NOTE: only works on Linux hosts.
+    network_mode: host
+    environment:
+      PORT: "8080"
+      DB_PATH: /data/sing-box-admin.db
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required - set it in .env}
+      DEFAULT_ADMIN_USER: ${DEFAULT_ADMIN_USER:-admin}
+      DEFAULT_ADMIN_PASS: ${DEFAULT_ADMIN_PASS:-mnice7082}
+    volumes:
+      - singbox_admin_data:/data
+
+volumes:
+  singbox_admin_data:
