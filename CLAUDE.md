@@ -40,6 +40,21 @@ Key points:
 - The SQLite DB lives on the named volume `singbox_admin_data` at `/data`, so data survives `docker compose down`.
 - Pin the bundled sing-box version by setting `SING_BOX_IMAGE` (e.g. `ghcr.io/sagernet/sing-box:v1.11.4`) in `.env`; default is `:latest`.
 
+### Verifying changes — pick the cheapest layer that proves what you need
+
+1. **Logic** (handlers, auth, api client, components): `make test` — local, seconds, no Docker/VPS.
+2. **Real UI + end-to-end flow**: `make build && ./backend/bin/sing-box-admin`, open http://localhost:8080 — local single binary, no Docker.
+3. **VPS-only behavior** (panel managing/launching sing-box, host networking, real proxying): deploy to the VPS and run under Docker. Only this layer needs the deploy loop.
+
+### Deploy loop to the VPS (rsync + remote rebuild)
+
+`scripts/deploy.sh` rsyncs the working tree to the VPS and runs `docker compose up -d --build` over SSH. `scripts/watch-deploy.sh` re-runs it automatically on file save (needs `brew install fswatch`). Makefile: `make deploy` / `make watch-deploy`.
+
+Setup:
+- Copy `.deploy.env.example` to `.deploy.env` (gitignored) and set `DEPLOY_HOST` (`user@ip`) and `DEPLOY_PATH`. Key-based SSH assumed.
+- The VPS needs Docker + compose installed, and a `.env` created **on the VPS** with `JWT_SECRET` — rsync deliberately excludes `.env` so it never clobbers the server's secret. The SQLite data lives in the `singbox_admin_data` Docker volume (outside the synced tree), so deploys never touch it.
+- Full image rebuild per deploy keeps parity with production; Docker layer caching skips `npm ci` / `go mod download` unless the lockfiles change.
+
 ## Architecture (the parts that span files)
 
 **Single-binary serving.** `internal/web/embed.go` uses `//go:embed all:dist` to embed the frontend export, and registers a Gin `NoRoute` handler that serves static files and falls back to `index.html` for unknown non-`/api/` paths (client-side routing). `internal/web/dist/` is a build artifact — gitignored except the tracked placeholder `index.html`/`.gitkeep` so a fresh checkout compiles before `make build` runs. During development there is no embedding: `frontend/next.config.ts` `rewrites` proxies `/api/*` to `http://localhost:8080`, so the browser sees same-origin (cookies work, no CORS).
