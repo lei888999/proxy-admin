@@ -26,27 +26,55 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-muted p-8">
-      <div className="mx-auto max-w-2xl space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
-          <Button variant="outline" onClick={onLogout}>
+    <main className="min-h-screen bg-background">
+      <div className="mx-auto max-w-5xl px-6 py-10">
+        <header className="mb-8 flex items-center justify-between">
+          <div>
+            <p className="font-mono text-xs tracking-[0.18em] text-muted-foreground uppercase">
+              sing-box admin
+            </p>
+            <h1 className="mt-1 text-2xl font-normal tracking-tight">Dashboard</h1>
+          </div>
+          <Button variant="outline" className="rounded-full" onClick={onLogout}>
             Logout
           </Button>
-        </div>
-        <Card>
+        </header>
+        <Card className="rounded-lg">
           <CardHeader>
-            <CardTitle>sing-box 状态</CardTitle>
+            <CardTitle className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
+              sing-box 状态
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {status === null ? (
-              <p>加载中…</p>
+              <p className="text-sm text-muted-foreground">加载中…</p>
             ) : (
-              <ul className="space-y-1">
-                <li>已安装：{status.installed ? "是" : "否"}</li>
-                <li>版本：{status.version || "—"}</li>
-                <li>运行中：{status.running ? "是" : "否"}</li>
-              </ul>
+              <div className="divide-y divide-border">
+                <div className="flex items-center justify-between py-3">
+                  <span className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
+                    已安装
+                  </span>
+                  <span className="text-sm">{status.installed ? "是" : "否"}</span>
+                </div>
+                <div className="flex items-center justify-between py-3">
+                  <span className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
+                    版本
+                  </span>
+                  <span className="font-mono text-sm">{status.version || "—"}</span>
+                </div>
+                <div className="flex items-center justify-between py-3">
+                  <span className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
+                    运行中
+                  </span>
+                  <span className="inline-flex items-center gap-2 text-sm">
+                    <span
+                      className="size-1.5 rounded-full"
+                      style={{ background: status.running ? "var(--sunset)" : "var(--muted-foreground)" }}
+                    />
+                    {status.running ? "运行中" : "已停止"}
+                  </span>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

@@ -77,6 +77,22 @@ Both modes deliberately never overwrite the VPS-side `.env` or the database.
 - Default admin (`admin`/`mnice7082`) is seeded only when the `admins` table is empty (`internal/database/database.go`). If `JWT_SECRET` is unset a random one is generated and logged — sessions then reset on restart, so set it in production.
 - Frontend components come from shadcn/ui's `base-nova` style, which is built on `@base-ui/react` (not Radix); the `cn` helper is in `frontend/lib/utils.ts`.
 
+## Working in this codebase
+
+Guidelines to reduce common mistakes. These bias toward caution over speed; for trivial tasks, use judgment.
+
+**Think before coding.** Don't assume — state assumptions explicitly and ask when uncertain. If multiple interpretations exist, present them rather than silently picking one. If a simpler approach exists, say so. If something is unclear, stop and name what's confusing.
+
+**Simplicity first.** Write the minimum code that solves the problem — nothing speculative. No features beyond what was asked, no abstractions for single-use code, no unrequested "flexibility," no error handling for impossible cases. If 200 lines could be 50, rewrite it.
+
+**Surgical changes.** Touch only what you must. Don't "improve" adjacent code, refactor what isn't broken, or reformat to taste — match existing style. Remove imports/vars/functions that *your* change orphaned; leave pre-existing dead code alone (mention it, don't delete it). Every changed line should trace to the request.
+
+**Goal-driven execution.** Turn tasks into verifiable goals ("add validation" → "write tests for invalid inputs, then make them pass"). For multi-step work, state a brief plan with a verify step each, then loop until verified. This repo already leans on this: `make test` (logic), local `make build` + run (UI/flow), VPS deploy (environment-specific) — pick the cheapest layer that proves the change.
+
+## UI / visual design
+
+Frontend styling follows `docs/DESIGN.md` — an xAI-inspired **single dark canvas** (no light mode): near-black `#0a0a0a` background, `#191919` cards with `#212327` hairline borders and **no shadows**, white pill buttons, ink/`#7d8187`-mute text, weight-400 type, and uppercase tracked **Geist Mono** eyebrow labels. The palette is wired as shadcn theme tokens in `frontend/app/globals.css` (forced dark via the `dark` class on `<html>`), so styling flows through the shadcn primitives — change tokens there rather than hardcoding colors per component.
+
 ## Design docs
 
-Specs and implementation plans live under `docs/superpowers/`. Read the relevant spec before extending a feature area — the M1 boundary (what's intentionally deferred) is documented there.
+Specs and implementation plans live under `docs/superpowers/`. Read the relevant spec before extending a feature area — the M1 boundary (what's intentionally deferred) is documented there. `docs/DESIGN.md` holds the visual identity spec.
