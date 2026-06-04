@@ -1,4 +1,4 @@
-.PHONY: dev build run test test-backend test-frontend docker-build docker-up docker-down docker-logs
+.PHONY: dev build run test test-backend test-frontend docker-build docker-up docker-down docker-logs deploy watch-deploy
 
 # Run backend (:8080) and frontend dev (:3000) together.
 dev:
@@ -39,3 +39,10 @@ docker-down:
 
 docker-logs:
 	docker compose logs -f
+
+# --- Deploy loop (rsync to VPS + remote docker rebuild) ---
+deploy:
+	./scripts/deploy.sh
+
+watch-deploy:
+	./scripts/watch-deploy.sh
