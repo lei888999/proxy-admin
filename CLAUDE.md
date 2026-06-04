@@ -1,0 +1,52 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+A server-side admin panel for [sing-box](https://github.com/SagerNet/sing-box), intended to run on an overseas VPS that acts as the proxy server. The Go backend runs and manages the local sing-box process and its config; the Next.js frontend is the admin UI. In production it ships as **one CGO-free binary** that serves both the API and the embedded frontend.
+
+Current state is milestone **M1 (skeleton)**: admin login + sing-box status only. Process control, server-config generation, user/inbound management, traffic stats, etc. are future milestones — see `docs/superpowers/specs/` and `docs/superpowers/plans/`.
+
+## Repository layout
+
+Monorepo with two halves:
+- `backend/` — Go module `singbox-admin` (Gin + GORM + SQLite). Entry point `cmd/server/main.go`; everything else under `internal/`.
+- `frontend/` — Next.js 16 (App Router, TypeScript, Tailwind v4, shadcn/ui). Built as a static export and embedded into the backend binary.
+
+## Commands
+
+All driven from the top-level `Makefile`:
+
+- `make dev` — run backend on :8080 and `next dev` on :3000 together (development).
+- `make build` — `next build` (static export to `frontend/out/`) → copy into `backend/internal/web/dist/` → `go build` the single binary to `backend/bin/sing-box-admin`.
+- `make run` — `make build` then run the binary.
+- `make test` — backend `go test ./...` + frontend `vitest run`.
+- `make test-backend` / `make test-frontend` — one side only.
+
+Running a single test:
+- Backend: `cd backend && go test ./internal/handlers/ -run TestLoginSuccessSetsCookie -v`
+- Frontend: `cd frontend && npm test -- app/login`
+
+The binary reads configuration from env vars: `PORT` (8080), `DB_PATH` (sing-box-admin.db), `JWT_SECRET`, `DEFAULT_ADMIN_USER` (admin), `DEFAULT_ADMIN_PASS` (mnice7082).
+
+## Architecture (the parts that span files)
+
+**Single-binary serving.** `internal/web/embed.go` uses `//go:embed all:dist` to embed the frontend export, and registers a Gin `NoRoute` handler that serves static files and falls back to `index.html` for unknown non-`/api/` paths (client-side routing). `internal/web/dist/` is a build artifact — gitignored except the tracked placeholder `index.html`/`.gitkeep` so a fresh checkout compiles before `make build` runs. During development there is no embedding: `frontend/next.config.ts` `rewrites` proxies `/api/*` to `http://localhost:8080`, so the browser sees same-origin (cookies work, no CORS).
+
+**Auth flow (cookie, not bearer header).** Login (`internal/handlers/auth.go`) verifies bcrypt and sets a JWT in an **httpOnly, SameSite=Lax cookie named `token`** (7-day expiry). `internal/middleware/auth.go` reads that cookie on protected routes. Because the cookie is httpOnly, the frontend cannot read the token — instead `frontend/lib/api.ts` sends every request with `credentials: "include"` and treats a 401 as "not logged in" (throws `UnauthorizedError`, pages redirect to `/login`). JWT generate/parse lives in `internal/auth/jwt.go`.
+
+**sing-box status is abstracted for testing.** `internal/service/singbox.go` defines a `Runner` interface (`Version()`, `IsRunning()`) so tests inject a fake; the real `execRunner` shells out to `sing-box version` and `pgrep -x sing-box`. Status returns `{installed, version, running}` and reports `installed:false` rather than erroring when sing-box is absent (the VPS may not have it yet).
+
+**Wiring.** `cmd/server/main.go` is the only place that assembles config → DB → JWT manager → handlers → routes → embedded web. Each `internal/` package has one responsibility and is unit-tested in isolation.
+
+## Conventions
+
+- **CGO-free on purpose.** The SQLite driver is `github.com/glebarez/sqlite` (pure Go), not `mattn/go-sqlite3`, so the binary cross-compiles for the VPS without a C toolchain. Don't swap it for a CGO driver.
+- **TDD.** Every backend package and the frontend logic/pages were built test-first; keep adding tests alongside code.
+- Default admin (`admin`/`mnice7082`) is seeded only when the `admins` table is empty (`internal/database/database.go`). If `JWT_SECRET` is unset a random one is generated and logged — sessions then reset on restart, so set it in production.
+- Frontend components come from shadcn/ui's `base-nova` style, which is built on `@base-ui/react` (not Radix); the `cn` helper is in `frontend/lib/utils.ts`.
+
+## Design docs
+
+Specs and implementation plans live under `docs/superpowers/`. Read the relevant spec before extending a feature area — the M1 boundary (what's intentionally deferred) is documented there.
