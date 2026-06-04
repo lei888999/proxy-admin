@@ -1,26 +1,73 @@
 @import "tailwindcss";
 
+/* shadcn/base-nova dark variant: utilities prefixed `dark:` apply under .dark */
+@custom-variant dark (&:is(.dark *));
+
+/*
+  xAI-inspired single dark canvas (see docs/DESIGN.md). No light-mode counterpart.
+  Near-black canvas, #191919 cards, #212327 hairline borders, white pills, ink/mute text.
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0a0a0a; /* canvas */
+  --foreground: #ffffff; /* ink */
+
+  --card: #191919; /* canvas-card */
+  --card-foreground: #ffffff;
+  --popover: #191919;
+  --popover-foreground: #ffffff;
+
+  --primary: #ffffff; /* white pill fill */
+  --primary-foreground: #0a0a0a; /* on-primary */
+
+  --secondary: #1a1c20; /* canvas-soft */
+  --secondary-foreground: #ffffff;
+  --muted: #1a1c20;
+  --muted-foreground: #7d8187; /* mute / body-mid */
+  --accent: #1a1c20;
+  --accent-foreground: #ffffff;
+
+  --destructive: #ff6b6b;
+  --destructive-foreground: #0a0a0a;
+
+  --border: #212327; /* hairline */
+  --input: #26282c;
+  --ring: #4b4f55;
+
+  --radius: 0.5rem; /* 8px card chrome */
+
+  /* rarely-used accents — reserved for status dots / illustrations */
+  --sunset: #ff7a17;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sunset: var(--sunset);
+  --radius-lg: var(--radius);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
