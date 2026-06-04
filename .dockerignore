@@ -1,0 +1,19 @@
+# VCS / docs
+.git
+docs
+*.md
+
+# Node
+**/node_modules
+frontend/.next
+frontend/out
+
+# Go build output
+backend/bin
+
+# Build artifact: dist is repopulated from the frontend stage during the image build
+backend/internal/web/dist
+
+# Local data / secrets
+**/*.db
+.env

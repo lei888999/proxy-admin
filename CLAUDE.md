@@ -30,6 +30,16 @@ Running a single test:
 
 The binary reads configuration from env vars: `PORT` (8080), `DB_PATH` (sing-box-admin.db), `JWT_SECRET`, `DEFAULT_ADMIN_USER` (admin), `DEFAULT_ADMIN_PASS` (mnice7082).
 
+### Docker (recommended for the VPS)
+
+`docker compose up -d --build` runs the whole thing as **one container**. The multi-stage `Dockerfile` builds the frontend, compiles the embedded single binary (`CGO_ENABLED=0`), and copies the `sing-box` binary from the official `ghcr.io/sagernet/sing-box` image so the panel can manage it in-container. Makefile shortcuts: `make docker-up` / `make docker-down` / `make docker-logs`.
+
+Key points:
+- Copy `.env.example` to `.env` and set `JWT_SECRET` (compose requires it; generate with `openssl rand -hex 32`). Without a persisted secret, sessions reset on every restart.
+- The service uses `network_mode: host` so panel-managed sing-box can bind proxy ports directly on the VPS — **Linux hosts only** (host networking is a no-op on Docker Desktop for macOS/Windows).
+- The SQLite DB lives on the named volume `singbox_admin_data` at `/data`, so data survives `docker compose down`.
+- Pin the bundled sing-box version by setting `SING_BOX_IMAGE` (e.g. `ghcr.io/sagernet/sing-box:v1.11.4`) in `.env`; default is `:latest`.
+
 ## Architecture (the parts that span files)
 
 **Single-binary serving.** `internal/web/embed.go` uses `//go:embed all:dist` to embed the frontend export, and registers a Gin `NoRoute` handler that serves static files and falls back to `index.html` for unknown non-`/api/` paths (client-side routing). `internal/web/dist/` is a build artifact — gitignored except the tracked placeholder `index.html`/`.gitkeep` so a fresh checkout compiles before `make build` runs. During development there is no embedding: `frontend/next.config.ts` `rewrites` proxies `/api/*` to `http://localhost:8080`, so the browser sees same-origin (cookies work, no CORS).

@@ -1,4 +1,4 @@
-.PHONY: dev build run test test-backend test-frontend
+.PHONY: dev build run test test-backend test-frontend docker-build docker-up docker-down docker-logs
 
 # Run backend (:8080) and frontend dev (:3000) together.
 dev:
@@ -26,3 +26,16 @@ test-backend:
 
 test-frontend:
 	cd frontend && npm test
+
+# --- Docker (single container: embedded frontend + bundled sing-box) ---
+docker-build:
+	docker compose build
+
+docker-up:
+	docker compose up -d --build
+
+docker-down:
+	docker compose down
+
+docker-logs:
+	docker compose logs -f

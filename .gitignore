@@ -12,5 +12,8 @@ backend/internal/web/dist/*
 !backend/internal/web/dist/.gitkeep
 !backend/internal/web/dist/index.html
 
+# local env / secrets
+.env
+
 # misc
 .DS_Store
