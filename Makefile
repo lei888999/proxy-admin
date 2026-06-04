@@ -1,4 +1,4 @@
-.PHONY: dev build run test test-backend test-frontend docker-build docker-up docker-down docker-logs deploy watch-deploy
+.PHONY: dev build run test test-backend test-frontend docker-build docker-up docker-down docker-logs deploy watch-deploy deploy-native watch-deploy-native
 
 # Run backend (:8080) and frontend dev (:3000) together.
 dev:
@@ -40,9 +40,16 @@ docker-down:
 docker-logs:
 	docker compose logs -f
 
-# --- Deploy loop (rsync to VPS + remote docker rebuild) ---
+# --- Deploy: Docker (rsync source + remote docker rebuild) ---
 deploy:
 	./scripts/deploy.sh
 
 watch-deploy:
 	./scripts/watch-deploy.sh
+
+# --- Deploy: native (ship single binary, run under systemd, no Docker) ---
+deploy-native:
+	./scripts/deploy-native.sh
+
+watch-deploy-native:
+	DEPLOY_SCRIPT=deploy-native.sh ./scripts/watch-deploy.sh

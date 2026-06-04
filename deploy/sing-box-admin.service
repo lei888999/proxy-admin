@@ -1,0 +1,21 @@
+# Reference systemd unit for the native (non-Docker) test deploy.
+# scripts/deploy-native.sh installs this automatically (with DEPLOY_PATH
+# substituted) — this copy is here for visibility. Default path: /opt/sing-box-admin.
+[Unit]
+Description=sing-box-admin (native test deploy)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/sing-box-admin
+# JWT_SECRET (and any overrides) come from this file; created on the VPS, never synced.
+EnvironmentFile=/opt/sing-box-admin/.env
+# Override the Docker-oriented DB_PATH so native runs keep their own database.
+Environment=DB_PATH=/opt/sing-box-admin/data/sing-box-admin.db
+ExecStart=/opt/sing-box-admin/sing-box-admin
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

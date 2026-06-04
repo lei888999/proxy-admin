@@ -46,14 +46,19 @@ Key points:
 2. **Real UI + end-to-end flow**: `make build && ./backend/bin/sing-box-admin`, open http://localhost:8080 — local single binary, no Docker.
 3. **VPS-only behavior** (panel managing/launching sing-box, host networking, real proxying): deploy to the VPS and run under Docker. Only this layer needs the deploy loop.
 
-### Deploy loop to the VPS (rsync + remote rebuild)
+### Deploy loop to the VPS
 
-`scripts/deploy.sh` rsyncs the working tree to the VPS and runs `docker compose up -d --build` over SSH. `scripts/watch-deploy.sh` re-runs it automatically on file save (needs `brew install fswatch`). Makefile: `make deploy` / `make watch-deploy`.
+Two modes share `.deploy.env` (gitignored — copy from `.deploy.env.example`, set `DEPLOY_HOST=user@ip`, `DEPLOY_PATH`, optional `DEPLOY_PORT`; key-based SSH assumed). Both have a watch variant that redeploys on save (`brew install fswatch`).
 
-Setup:
-- Copy `.deploy.env.example` to `.deploy.env` (gitignored) and set `DEPLOY_HOST` (`user@ip`) and `DEPLOY_PATH`. Key-based SSH assumed.
-- The VPS needs Docker + compose installed, and a `.env` created **on the VPS** with `JWT_SECRET` — rsync deliberately excludes `.env` so it never clobbers the server's secret. The SQLite data lives in the `singbox_admin_data` Docker volume (outside the synced tree), so deploys never touch it.
-- Full image rebuild per deploy keeps parity with production; Docker layer caching skips `npm ci` / `go mod download` unless the lockfiles change.
+**Native — recommended for the test/debug loop, no Docker** (`make deploy-native` / `make watch-deploy-native`, `scripts/deploy-native.sh`):
+- Builds the frontend and cross-compiles the embedded **single static binary locally** (arch auto-detected from the VPS via `uname -m`), ships just the binary, and runs it under **systemd** (`sing-box-admin.service`, installed automatically; reference copy in `deploy/`).
+- VPS needs nothing but the binary — no Go/Node/Docker. It does need `sing-box` on `PATH` for status to read, a `$DEPLOY_PATH/.env` with `JWT_SECRET`, and root (to write the unit). DB lives at `$DEPLOY_PATH/data/` (the unit overrides `DB_PATH`). Fast: seconds per deploy.
+- Logs: `journalctl -u sing-box-admin -f`.
+
+**Docker — matches production** (`make deploy` / `make watch-deploy`, `scripts/deploy.sh`):
+- rsyncs the tree (excluding `node_modules`/`.git`/`.env`/data) and runs `docker compose up -d --build` over SSH. VPS needs Docker + compose and a `.env` with `JWT_SECRET`. Data persists in the `singbox_admin_data` volume. Slower (full image rebuild) but identical to prod; layer caching skips `npm ci`/`go mod download` unless lockfiles change.
+
+Both modes deliberately never overwrite the VPS-side `.env` or the database.
 
 ## Architecture (the parts that span files)
 
