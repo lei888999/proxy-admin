@@ -51,8 +51,9 @@ CredentialKind() string                              // "uuid"（vless）| "pass
 UpdateSettings(existing string, params map[string]any) (string, error) // 保留密钥，仅改可编辑参数
 ResetSecrets(existing string) (string, error)        // 重新生成密钥/证书，保留参数
 ```
-- vless：UpdateSettings 改 handshake（serverName=handshake），保留 reality 密钥/shortId/flow；ResetSecrets 新 reality 密钥+shortId，保留 handshake。CredentialKind="uuid"。
+- vless：UpdateSettings 改 handshake（serverName=handshake）、handshakePort，保留 reality 密钥/shortId/flow；ResetSecrets 新 reality 密钥+shortId，保留 handshake/handshakePort。CredentialKind="uuid"。
 - hy2：UpdateSettings 改 serverName/up/down，保留证书；ResetSecrets 新自签证书，保留 serverName/up/down。CredentialKind="password"。
+> 「除协议(type)外都可改」：tag、port、以及上述各协议的全部可编辑参数都可改；type 唯一不可改。
 
 ## 4. 配置生成（按协议取凭证）
 
@@ -101,8 +102,8 @@ for each inbound:
 - 侧边栏导航：`概览 / 入站 / 用户 / 配置`。
 - **轻量 Modal 组件** `components/modal.tsx`（深色、点遮罩/Esc 关闭），自写不引第三方。
 - **shadcn Select**：`npx shadcn@latest add select`，协议选择用之；编辑入站时禁用（type 不可改）。
-- **入站页**：新建/编辑都开 modal（协议 Select + type-aware 字段：vless 握手域名 / hy2 SNI+上下行）。卡片每项有「编辑」「重置密钥」「删除」；重置密钥弹**二次确认** modal。卡片只展示 publicInfo（不展示用户）。
-- **用户页** `/users`：表格（名称、UUID、**明文密码**、所属入站标签）；「新建用户」modal（名称 + 入站多选 checkbox 列表）；行操作「编辑」(同 modal)、「重置凭证」、「删除」。
+- **入站页**：新建/编辑都开 modal（协议 Select + type-aware 字段：vless 握手域名+握手端口 / hy2 SNI+上下行）。编辑 modal 协议 Select 只读、其余字段预填可改。卡片每项有「编辑」「重置密钥」「删除」；重置密钥弹**二次确认** modal。卡片只展示 publicInfo（不展示用户）。
+- **用户页** `/users`：表格列 = **名称、UUID、明文密码、所属入站标签**；「新建用户」modal（名称 + 入站多选 checkbox 列表）；行操作「编辑」(同 modal)、「重置凭证」、「删除」。
 - `lib/api.ts` 增：users CRUD + reset、inbound update + resetKeys、`InboundType` 复用；`Inbound` 去掉 users。
 
 ## 8. 测试
