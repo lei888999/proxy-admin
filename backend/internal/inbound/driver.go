@@ -32,12 +32,11 @@ type TypeInfo struct {
 	DefaultPort uint16 `json:"defaultPort"`
 }
 
-// ExperimentalConfig holds the sing-box experimental API endpoints the panel
-// uses for traffic stats (clash_api = live, v2ray_api = cumulative).
+// ExperimentalConfig holds the sing-box Clash API endpoint the panel uses for
+// traffic stats (live throughput + per-user cumulative via /connections).
 type ExperimentalConfig struct {
 	ClashAddr   string
 	ClashSecret string
-	V2RayAddr   string
 }
 
 var registry = map[string]Driver{}

@@ -72,7 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-6">
-          <span className="text-sm text-muted-foreground">sing-box 管理面板</span>
+          <span className="text-sm text-muted-foreground"></span>
           <Button variant="outline" className="rounded-full" onClick={onLogout}>
             退出登录
           </Button>

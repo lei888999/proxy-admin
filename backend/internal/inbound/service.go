@@ -314,10 +314,8 @@ func (s *Service) ResetUserTraffic(id uint) error {
 const (
 	metaClashAddr   = "clash_api_addr"
 	metaClashSecret = "clash_api_secret"
-	metaV2RayAddr   = "v2ray_api_addr"
 
 	defaultClashAddr = "127.0.0.1:9090"
-	defaultV2RayAddr = "127.0.0.1:9091"
 )
 
 // APIConfig returns the experimental API endpoints, generating + persisting
@@ -349,11 +347,7 @@ func (s *Service) APIConfig() (ExperimentalConfig, error) {
 	if err != nil {
 		return ExperimentalConfig{}, err
 	}
-	v2Addr, err := get(metaV2RayAddr, defaultV2RayAddr)
-	if err != nil {
-		return ExperimentalConfig{}, err
-	}
-	return ExperimentalConfig{ClashAddr: clashAddr, ClashSecret: secret, V2RayAddr: v2Addr}, nil
+	return ExperimentalConfig{ClashAddr: clashAddr, ClashSecret: secret}, nil
 }
 
 func (s *Service) Regenerate() error {

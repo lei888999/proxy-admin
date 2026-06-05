@@ -19,7 +19,7 @@ func TestGeneratePicksCredByProtocol(t *testing.T) {
 		{ID: 4, Tag: "h1", Type: "hysteria2", Network: "udp", Port: 443, Settings: hs,
 			Users: []models.User{{ID: 7, Name: "a", UUID: "uuid-x", Password: "pw-x"}}},
 	}
-	exp := ExperimentalConfig{ClashAddr: "127.0.0.1:9090", ClashSecret: "sec", V2RayAddr: "127.0.0.1:9091"}
+	exp := ExperimentalConfig{ClashAddr: "127.0.0.1:9090", ClashSecret: "sec"}
 	out, err := Generate(ins, exp)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -31,7 +31,7 @@ func TestGeneratePicksCredByProtocol(t *testing.T) {
 		t.Fatal("hysteria2 should use Password")
 	}
 	if !strings.Contains(out, `"name": "u7"`) {
-		t.Fatal("inbound user name should be the stable stats key u7")
+		t.Fatal("inbound user name should be the stable key u7 (becomes clash metadata.user)")
 	}
 	var cfg map[string]any
 	if err := json.Unmarshal([]byte(out), &cfg); err != nil {
@@ -41,16 +41,12 @@ func TestGeneratePicksCredByProtocol(t *testing.T) {
 	if !ok {
 		t.Fatal("missing experimental block")
 	}
-	if _, ok := expBlock["clash_api"].(map[string]any); !ok {
-		t.Fatal("missing clash_api")
+	clash, ok := expBlock["clash_api"].(map[string]any)
+	if !ok || clash["external_controller"] != "127.0.0.1:9090" {
+		t.Fatalf("clash_api missing/wrong: %v", expBlock["clash_api"])
 	}
-	v2 := expBlock["v2ray_api"].(map[string]any)
-	stats := v2["stats"].(map[string]any)
-	if stats["enabled"] != true {
-		t.Fatal("v2ray stats not enabled")
-	}
-	users := stats["users"].([]any)
-	if len(users) != 1 || users[0] != "u7" {
-		t.Fatalf("stats.users=%v, want [u7]", users)
+	// v2ray_api must NOT be emitted — it is absent from the official sing-box build.
+	if _, ok := expBlock["v2ray_api"]; ok {
+		t.Fatal("v2ray_api must not be present (breaks stock sing-box startup)")
 	}
 }

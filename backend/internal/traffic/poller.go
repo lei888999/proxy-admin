@@ -13,57 +13,76 @@ type TrafficStore interface {
 	AddTraffic(userID uint, up, down int64) error
 }
 
+type counters struct{ up, down int64 }
+
 type Poller struct {
-	client   StatsClient
+	client   ConnectionsClient
 	store    TrafficStore
 	interval time.Duration
+	// lastSeen tracks each live connection's cumulative bytes so we add only the
+	// per-tick delta. Entries for closed connections are pruned each tick.
+	lastSeen map[string]counters
 }
 
-func NewPoller(client StatsClient, store TrafficStore, interval time.Duration) *Poller {
-	return &Poller{client: client, store: store, interval: interval}
+func NewPoller(client ConnectionsClient, store TrafficStore, interval time.Duration) *Poller {
+	return &Poller{client: client, store: store, interval: interval, lastSeen: map[string]counters{}}
 }
 
-// parseUserStat parses "user>>>u<id>>>>traffic>>><uplink|downlink>".
-func parseUserStat(name string) (uint, string, bool) {
-	parts := strings.Split(name, ">>>")
-	if len(parts) != 4 || parts[0] != "user" || parts[2] != "traffic" {
-		return 0, "", false
+// parseUserID turns a connection's metadata.user ("u<id>") into a user ID.
+func parseUserID(user string) (uint, bool) {
+	if !strings.HasPrefix(user, "u") {
+		return 0, false
 	}
-	if !strings.HasPrefix(parts[1], "u") {
-		return 0, "", false
-	}
-	id, err := strconv.ParseUint(parts[1][1:], 10, 64)
+	id, err := strconv.ParseUint(user[1:], 10, 64)
 	if err != nil {
-		return 0, "", false
+		return 0, false
 	}
-	return uint(id), parts[3], true
+	return uint(id), true
 }
 
 func (p *Poller) pollOnce(ctx context.Context) error {
-	stats, err := p.client.QueryStats(ctx)
+	conns, err := p.client.Connections(ctx)
 	if err != nil {
 		return err
 	}
-	type delta struct{ up, down int64 }
-	acc := map[uint]*delta{}
-	for _, s := range stats {
-		id, dir, ok := parseUserStat(s.Name)
+	acc := map[uint]*counters{}
+	live := make(map[string]struct{}, len(conns))
+	for _, cn := range conns {
+		live[cn.ID] = struct{}{}
+		uid, ok := parseUserID(cn.User)
 		if !ok {
 			continue
 		}
-		d := acc[id]
-		if d == nil {
-			d = &delta{}
-			acc[id] = d
+		prev := p.lastSeen[cn.ID]
+		du, dd := cn.Up-prev.up, cn.Down-prev.down
+		// A negative delta means the connection ID was reused or counters reset;
+		// treat the current value as the delta instead of subtracting.
+		if du < 0 {
+			du = cn.Up
 		}
-		if dir == "uplink" {
-			d.up += s.Value
-		} else if dir == "downlink" {
-			d.down += s.Value
+		if dd < 0 {
+			dd = cn.Down
+		}
+		p.lastSeen[cn.ID] = counters{cn.Up, cn.Down}
+		d := acc[uid]
+		if d == nil {
+			d = &counters{}
+			acc[uid] = d
+		}
+		d.up += du
+		d.down += dd
+	}
+	// Prune connections that have closed since the last tick.
+	for id := range p.lastSeen {
+		if _, ok := live[id]; !ok {
+			delete(p.lastSeen, id)
 		}
 	}
-	for id, d := range acc {
-		if err := p.store.AddTraffic(id, d.up, d.down); err != nil {
+	for uid, d := range acc {
+		if d.up == 0 && d.down == 0 {
+			continue
+		}
+		if err := p.store.AddTraffic(uid, d.up, d.down); err != nil {
 			return err
 		}
 	}
