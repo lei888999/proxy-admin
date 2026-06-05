@@ -57,4 +57,16 @@ describe("InboundsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /确认重置/ }));
     await waitFor(() => expect(resetKeysMock).toHaveBeenCalledWith(1));
   });
+
+  it("删除入站需二次确认", async () => {
+    listInboundsMock.mockResolvedValue([
+      { id: 1, type: "vless-reality", tag: "v1", port: 8443, network: "tcp", publicInfo: {} },
+    ]);
+    render(<InboundsPage />);
+    await waitFor(() => expect(screen.getByText("v1")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /^删除$/ }));
+    expect(deleteInboundMock).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: /确认删除/ }));
+    await waitFor(() => expect(deleteInboundMock).toHaveBeenCalledWith(1));
+  });
 });

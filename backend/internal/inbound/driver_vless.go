@@ -38,8 +38,6 @@ func (d vlessReality) BuildSettings(params map[string]any) (string, error) {
 	return string(b), err
 }
 
-func (d vlessReality) NewCredential() string { return d.kg.UUID() }
-
 func (vlessReality) BuildInbound(tag string, port uint16, settings string, users []Cred) (map[string]any, error) {
 	var s vlessSettings
 	if err := json.Unmarshal([]byte(settings), &s); err != nil {
@@ -71,7 +69,7 @@ func (vlessReality) PublicInfo(settings string) (map[string]any, error) {
 	}
 	return map[string]any{
 		"realityPublicKey": s.RealityPublicKey, "shortId": s.ShortID,
-		"serverName": s.ServerName, "flow": s.Flow,
+		"serverName": s.ServerName, "handshakePort": s.HandshakePort, "flow": s.Flow,
 	}, nil
 }
 

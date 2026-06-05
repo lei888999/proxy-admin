@@ -11,13 +11,14 @@ vi.mock("next/navigation", () => ({
 const listUsersMock = vi.fn();
 const listInboundsMock = vi.fn();
 const createUserMock = vi.fn();
+const deleteUserMock = vi.fn();
 vi.mock("@/lib/api", () => ({
   listUsers: () => listUsersMock(),
   listInbounds: () => listInboundsMock(),
   createUser: (...a: unknown[]) => createUserMock(...a),
   updateUser: vi.fn(),
   resetUserCreds: vi.fn(),
-  deleteUser: vi.fn(),
+  deleteUser: (...a: unknown[]) => deleteUserMock(...a),
   getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true }),
   logout: vi.fn(),
   UnauthorizedError: class extends Error {},
@@ -29,6 +30,7 @@ beforeEach(() => {
     { id: 1, type: "vless-reality", tag: "v1", port: 8443, network: "tcp", publicInfo: {} },
   ]);
   createUserMock.mockReset().mockResolvedValue({ id: 1 });
+  deleteUserMock.mockReset().mockResolvedValue(undefined);
 });
 
 describe("UsersPage", () => {
@@ -51,5 +53,17 @@ describe("UsersPage", () => {
     await waitFor(() => expect(createUserMock).toHaveBeenCalled());
     expect(createUserMock.mock.calls[0][0]).toBe("bob");
     expect(createUserMock.mock.calls[0][1]).toEqual([1]);
+  });
+
+  it("删除用户需二次确认", async () => {
+    listUsersMock.mockResolvedValue([
+      { id: 7, name: "alice", uuid: "u", password: "p", inboundIds: [], inboundTags: [] },
+    ]);
+    render(<UsersPage />);
+    await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /^删除$/ }));
+    expect(deleteUserMock).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: /确认删除/ }));
+    await waitFor(() => expect(deleteUserMock).toHaveBeenCalledWith(7));
   });
 });

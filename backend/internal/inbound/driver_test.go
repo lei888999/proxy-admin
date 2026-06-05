@@ -98,6 +98,9 @@ func TestVlessUpdateAndReset(t *testing.T) {
 	if pi["serverName"] != "b.com" {
 		t.Fatalf("serverName=%v", pi["serverName"])
 	}
+	if pi["handshakePort"] != uint16(8443) {
+		t.Fatalf("handshakePort=%v, want 8443 (round-trips via publicInfo)", pi["handshakePort"])
+	}
 	in1, _ := d.BuildInbound("t", 1, s, nil)
 	in2, _ := d.BuildInbound("t", 1, u, nil)
 	pk1 := in1["tls"].(map[string]any)["reality"].(map[string]any)["private_key"]
