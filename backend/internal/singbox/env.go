@@ -15,6 +15,7 @@ type Env interface {
 	Spawn(logPath, bin, configPath string) (int, error)
 	Alive(pid int) bool
 	Pgrep(name string) bool
+	Pkill(name string) error
 	Signal(pid int, sig syscall.Signal) error
 }
 
@@ -74,6 +75,10 @@ func (osEnv) Alive(pid int) bool {
 
 func (osEnv) Pgrep(name string) bool {
 	return exec.Command("pgrep", "-x", name).Run() == nil
+}
+
+func (osEnv) Pkill(name string) error {
+	return exec.Command("pkill", "-x", name).Run()
 }
 
 func (osEnv) Signal(pid int, sig syscall.Signal) error {

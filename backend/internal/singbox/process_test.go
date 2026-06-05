@@ -36,6 +36,7 @@ func (f *fakeEnv) Spawn(string, string, string) (int, error) {
 }
 func (f *fakeEnv) Alive(pid int) bool { return f.alive[pid] }
 func (f *fakeEnv) Pgrep(string) bool  { return f.pgrep }
+func (f *fakeEnv) Pkill(string) error { f.pgrep = false; return nil }
 func (f *fakeEnv) Signal(pid int, sig syscall.Signal) error {
 	f.signals = append(f.signals, struct {
 		pid int
@@ -107,6 +108,22 @@ func TestProcessStopWhenNotRunning(t *testing.T) {
 	pm := newPM(t, newFakeEnv())
 	if err := pm.Stop(); err != ErrNotRunning {
 		t.Fatalf("err = %v, want ErrNotRunning", err)
+	}
+}
+
+// A sing-box adopted via the pgrep fallback (no PID file) must still be stoppable.
+func TestProcessStopAdoptedProcess(t *testing.T) {
+	env := newFakeEnv()
+	env.pgrep = true // running externally, no PID file written by us
+	pm := newPM(t, env)
+	if !pm.Running() {
+		t.Fatal("precondition: should report running via pgrep")
+	}
+	if err := pm.Stop(); err != nil {
+		t.Fatalf("Stop adopted: %v, want nil", err)
+	}
+	if pm.Running() {
+		t.Fatal("should not be running after stop (pkill)")
 	}
 }
 
