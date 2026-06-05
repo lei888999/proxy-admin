@@ -2,6 +2,7 @@ package inbound
 
 import (
 	"errors"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -9,8 +10,10 @@ import (
 )
 
 var (
-	ErrTagExists = errors.New("tag exists")
-	ErrNotFound  = errors.New("not found")
+	ErrTagExists  = errors.New("tag exists")
+	ErrNotFound   = errors.New("not found")
+	ErrInvalidTag = errors.New("invalid tag")
+	ErrPortInUse  = errors.New("port in use")
 )
 
 // ConfigWriter is satisfied by *singbox.Service (SaveConfig).
@@ -35,10 +38,18 @@ func (s *Service) ListInbounds() ([]models.Inbound, error) {
 }
 
 func (s *Service) CreateInbound(tag string, port uint16, handshake string) (models.Inbound, error) {
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return models.Inbound{}, ErrInvalidTag
+	}
 	var count int64
 	s.db.Model(&models.Inbound{}).Where("tag = ?", tag).Count(&count)
 	if count > 0 {
 		return models.Inbound{}, ErrTagExists
+	}
+	s.db.Model(&models.Inbound{}).Where("port = ?", port).Count(&count)
+	if count > 0 {
+		return models.Inbound{}, ErrPortInUse
 	}
 	priv, pub, err := s.keygen.RealityKeypair()
 	if err != nil {

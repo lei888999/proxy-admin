@@ -11,11 +11,12 @@ vi.mock("next/navigation", () => ({
 const listInboundsMock = vi.fn();
 const createInboundMock = vi.fn();
 const deleteInboundMock = vi.fn();
+const listUsersMock = vi.fn().mockResolvedValue([]);
 vi.mock("@/lib/api", () => ({
   listInbounds: () => listInboundsMock(),
   createInbound: (...a: unknown[]) => createInboundMock(...a),
   deleteInbound: (...a: unknown[]) => deleteInboundMock(...a),
-  listUsers: vi.fn().mockResolvedValue([]),
+  listUsers: () => listUsersMock(),
   createUser: vi.fn(),
   deleteUser: vi.fn(),
   getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true }),
@@ -27,6 +28,7 @@ beforeEach(() => {
   listInboundsMock.mockReset();
   createInboundMock.mockReset();
   deleteInboundMock.mockReset();
+  listUsersMock.mockClear();
 });
 
 describe("InboundsPage", () => {
@@ -37,6 +39,15 @@ describe("InboundsPage", () => {
     render(<InboundsPage />);
     await waitFor(() => expect(screen.getByText("v1")).toBeInTheDocument());
     expect(screen.getByText(/443/)).toBeInTheDocument();
+  });
+
+  it("用预加载的用户渲染，不在挂载时再拉取", async () => {
+    listInboundsMock.mockResolvedValue([
+      { id: 1, tag: "v1", port: 443, flow: "xtls-rprx-vision", realityPublicKey: "PUB", realityShortId: "deadbeef", serverName: "www.microsoft.com", users: [{ id: 9, inboundId: 1, name: "alice", uuid: "u-1" }] },
+    ]);
+    render(<InboundsPage />);
+    await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
+    expect(listUsersMock).not.toHaveBeenCalled();
   });
 
   it("新建入站调用 createInbound", async () => {

@@ -86,24 +86,24 @@ export default function InboundsPage() {
 }
 
 function InboundCard({ inbound, onDelete }: { inbound: Inbound; onDelete: () => void }) {
-  const [users, setUsers] = useState<SingboxUser[]>([]);
+  // Seed from the users already preloaded by listInbounds; only refetch after a mutation.
+  const [users, setUsers] = useState<SingboxUser[]>(inbound.users ?? []);
   const [name, setName] = useState("");
 
-  const refresh = useCallback(() => {
+  const reloadUsers = useCallback(() => {
     listUsers(inbound.id).then(setUsers).catch(() => {});
   }, [inbound.id]);
-  useEffect(refresh, [refresh]);
 
   async function onAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!name) return;
     await createUser(inbound.id, name);
     setName("");
-    refresh();
+    reloadUsers();
   }
   async function onRemove(id: number) {
     await deleteUser(id);
-    refresh();
+    reloadUsers();
   }
 
   const field = (k: string, v: string) => (

@@ -66,11 +66,16 @@ func (h *InboundHandler) CreateInbound(c *gin.Context) {
 	}
 	in, err := h.ctrl.CreateInbound(b.Tag, b.Port, b.Handshake)
 	if err != nil {
-		if errors.Is(err, inbound.ErrTagExists) {
+		switch {
+		case errors.Is(err, inbound.ErrInvalidTag):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid tag"})
+		case errors.Is(err, inbound.ErrTagExists):
 			c.JSON(http.StatusConflict, gin.H{"error": "tag exists"})
-			return
+		case errors.Is(err, inbound.ErrPortInUse):
+			c.JSON(http.StatusConflict, gin.H{"error": "port in use"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, in)
