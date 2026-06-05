@@ -1,84 +1,98 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getStatus, logout, UnauthorizedError, SingboxStatus } from "@/lib/api";
+import { getStatus, startSingbox, stopSingbox, UnauthorizedError, SingboxStatus } from "@/lib/api";
+import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [status, setStatus] = useState<SingboxStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     getStatus()
       .then(setStatus)
       .catch((err) => {
-        if (err instanceof UnauthorizedError) {
-          router.push("/login");
-        }
+        if (err instanceof UnauthorizedError) router.push("/login");
       });
   }, [router]);
 
-  async function onLogout() {
-    await logout();
-    router.push("/login");
+  useEffect(refresh, [refresh]);
+
+  async function run(action: () => Promise<SingboxStatus>) {
+    setBusy(true);
+    setError("");
+    try {
+      setStatus(await action());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "操作失败");
+    } finally {
+      setBusy(false);
+    }
   }
 
+  const row = (label: string, value: React.ReactNode) => (
+    <div className="flex items-center justify-between py-3">
+      <span className="font-mono text-xs tracking-wider text-muted-foreground uppercase">{label}</span>
+      <span className="text-sm">{value}</span>
+    </div>
+  );
+
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-5xl px-6 py-10">
-        <header className="mb-8 flex items-center justify-between">
-          <div>
-            <p className="font-mono text-xs tracking-[0.18em] text-muted-foreground uppercase">
-              sing-box admin
-            </p>
-            <h1 className="mt-1 text-2xl font-normal tracking-tight">Dashboard</h1>
-          </div>
-          <Button variant="outline" className="rounded-full" onClick={onLogout}>
-            Logout
-          </Button>
-        </header>
-        <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
-              sing-box 状态
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {status === null ? (
-              <p className="text-sm text-muted-foreground">加载中…</p>
-            ) : (
+    <AppShell>
+      <h1 className="mb-6 text-2xl font-normal tracking-tight">概览</h1>
+      <Card className="rounded-lg">
+        <CardHeader>
+          <CardTitle className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
+            sing-box 状态
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {status === null ? (
+            <p className="text-sm text-muted-foreground">加载中…</p>
+          ) : (
+            <>
               <div className="divide-y divide-border">
-                <div className="flex items-center justify-between py-3">
-                  <span className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
-                    已安装
-                  </span>
-                  <span className="text-sm">{status.installed ? "是" : "否"}</span>
-                </div>
-                <div className="flex items-center justify-between py-3">
-                  <span className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
-                    版本
-                  </span>
-                  <span className="font-mono text-sm">{status.version || "—"}</span>
-                </div>
-                <div className="flex items-center justify-between py-3">
-                  <span className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
-                    运行中
-                  </span>
-                  <span className="inline-flex items-center gap-2 text-sm">
+                {row("已安装", status.installed ? "是" : "否")}
+                {row("版本", <span className="font-mono">{status.version || "—"}</span>)}
+                {row("配置", status.hasConfig ? "已就绪" : "未配置")}
+                {row(
+                  "运行状态",
+                  <span className="inline-flex items-center gap-2">
                     <span
                       className="size-1.5 rounded-full"
                       style={{ background: status.running ? "var(--sunset)" : "var(--muted-foreground)" }}
                     />
                     {status.running ? "运行中" : "已停止"}
                   </span>
-                </div>
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </main>
+              {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+              <div className="mt-6 flex gap-3">
+                <Button
+                  className="rounded-full"
+                  disabled={busy || !status.installed || !status.hasConfig || status.running}
+                  onClick={() => run(startSingbox)}
+                >
+                  启动
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  disabled={busy || !status.running}
+                  onClick={() => run(stopSingbox)}
+                >
+                  停止
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </AppShell>
   );
 }
