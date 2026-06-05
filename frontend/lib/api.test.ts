@@ -41,7 +41,7 @@ describe("api", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ installed: true, version: "1.14.0", running: true, hasConfig: true }), { status: 200 })
+        new Response(JSON.stringify({ installed: true, version: "1.13.13", running: true, hasConfig: true }), { status: 200 })
       )
     );
     const st = await startSingbox();

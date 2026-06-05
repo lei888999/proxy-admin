@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
   usePathname: () => "/dashboard",
 }));
-const getStatusMock = vi.fn().mockResolvedValue({ installed: true, version: "1.14.0", running: false, hasConfig: false });
+const getStatusMock = vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: false });
 const logoutMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/api", () => ({
   getStatus: () => getStatusMock(),

@@ -93,7 +93,7 @@ M1 骨架只能探测 sing-box 状态。M2 让面板真正**管理同机的 sing
 ### 环境变量（`internal/config`）
 - `SINGBOX_DIR`（默认 `./singbox`）：托管目录。
 - `SINGBOX_BIN`（默认空）：显式覆盖二进制路径。
-- `SINGBOX_VERSION`（默认 `1.14.0`）：仅 `deploy-native.sh` 打包、`docker-compose.yml` 的 `SING_BOX_IMAGE` 钉版时用，运行时不读。docker 端同步把 `SING_BOX_IMAGE` 默认钉到 `ghcr.io/sagernet/sing-box:v1.14.0`。
+- `SINGBOX_VERSION`（默认 `1.13.13`）：仅 `deploy-native.sh` 打包、`docker-compose.yml` 的 `SING_BOX_IMAGE` 钉版时用，运行时不读。docker 端同步把 `SING_BOX_IMAGE` 默认钉到 `ghcr.io/sagernet/sing-box:v1.13.13`。
 
 ### docker
 - `docker-compose.yml` 增 `SINGBOX_DIR: /data/singbox`（落在已有数据卷，持久化）。镜像已内置 sing-box 于 PATH，`ResolveBin` 兜底命中。

@@ -46,9 +46,9 @@ func do(r *gin.Engine, method, path, body string) *httptest.ResponseRecorder {
 }
 
 func TestStatusEndpoint(t *testing.T) {
-	r := newRouter(&fakeCtrl{status: singbox.Status{Installed: true, Version: "1.14.0", HasConfig: true}})
+	r := newRouter(&fakeCtrl{status: singbox.Status{Installed: true, Version: "1.13.13", HasConfig: true}})
 	w := do(r, http.MethodGet, "/api/status", "")
-	if w.Code != 200 || !strings.Contains(w.Body.String(), `"version":"1.14.0"`) || !strings.Contains(w.Body.String(), `"hasConfig":true`) {
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"version":"1.13.13"`) || !strings.Contains(w.Body.String(), `"hasConfig":true`) {
 		t.Fatalf("code=%d body=%s", w.Code, w.Body.String())
 	}
 }

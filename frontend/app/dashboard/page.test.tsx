@@ -29,15 +29,15 @@ beforeEach(() => {
 
 describe("DashboardPage", () => {
   it("显示运行状态与版本", async () => {
-    getStatusMock.mockResolvedValue({ installed: true, version: "1.14.0", running: true, hasConfig: true });
+    getStatusMock.mockResolvedValue({ installed: true, version: "1.13.13", running: true, hasConfig: true });
     render(<DashboardPage />);
     await waitFor(() => expect(screen.getByText(/运行中/)).toBeInTheDocument());
-    expect(screen.getByText(/1\.14\.0/)).toBeInTheDocument();
+    expect(screen.getByText(/1\.13\.13/)).toBeInTheDocument();
   });
 
   it("点击启动调用 startSingbox", async () => {
-    getStatusMock.mockResolvedValue({ installed: true, version: "1.14.0", running: false, hasConfig: true });
-    startMock.mockResolvedValue({ installed: true, version: "1.14.0", running: true, hasConfig: true });
+    getStatusMock.mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true });
+    startMock.mockResolvedValue({ installed: true, version: "1.13.13", running: true, hasConfig: true });
     render(<DashboardPage />);
     const btn = await screen.findByRole("button", { name: /启动/ });
     await userEvent.click(btn);

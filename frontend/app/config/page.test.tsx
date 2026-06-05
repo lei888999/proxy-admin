@@ -12,7 +12,7 @@ const saveConfigMock = vi.fn();
 vi.mock("@/lib/api", () => ({
   getConfig: () => getConfigMock(),
   saveConfig: (c: string) => saveConfigMock(c),
-  getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.14.0", running: false, hasConfig: true }),
+  getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true }),
   logout: vi.fn(),
   UnauthorizedError: class extends Error {},
 }));
