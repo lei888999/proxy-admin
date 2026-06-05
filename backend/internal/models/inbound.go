@@ -19,6 +19,7 @@ type User struct {
 	Name      string    `gorm:"not null" json:"name"`
 	UUID      string    `gorm:"not null" json:"uuid"`
 	Password  string    `gorm:"not null" json:"password"`
+	SubToken  string    `gorm:"uniqueIndex" json:"subToken"`
 	Inbounds  []Inbound `gorm:"many2many:user_inbounds;" json:"-"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
