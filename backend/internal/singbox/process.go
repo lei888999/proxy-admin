@@ -43,6 +43,11 @@ func (p *ProcessManager) Stop() error {
 	pid, ok := p.readPid()
 	if !ok || !p.env.Alive(pid) {
 		_ = os.Remove(p.pidPath)
+		// No live PID file, but a sing-box may be running that we adopted via
+		// the pgrep fallback (started outside the panel). Stop it too.
+		if p.env.Pgrep("sing-box") {
+			return p.env.Pkill("sing-box")
+		}
 		return ErrNotRunning
 	}
 	_ = p.env.Signal(pid, syscall.SIGTERM)
