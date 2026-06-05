@@ -12,17 +12,17 @@ beforeEach(() => {
 });
 
 describe("LoginPage", () => {
-  it("renders username and password fields", () => {
+  it("渲染用户名和密码输入", () => {
     render(<LoginPage />);
-    expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/用户名/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/密码/)).toBeInTheDocument();
   });
 
-  it("redirects to dashboard after successful login", async () => {
+  it("登录成功后跳转仪表盘", async () => {
     render(<LoginPage />);
-    await userEvent.type(screen.getByLabelText(/username/i), "admin");
-    await userEvent.type(screen.getByLabelText(/password/i), "mnice7082");
-    await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    await userEvent.type(screen.getByLabelText(/用户名/), "admin");
+    await userEvent.type(screen.getByLabelText(/密码/), "mnice7082");
+    await userEvent.click(screen.getByRole("button", { name: /登录/ }));
     expect(pushMock).toHaveBeenCalledWith("/dashboard");
   });
 });

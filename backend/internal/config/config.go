@@ -13,6 +13,8 @@ type Config struct {
 	JWTSecret        string
 	DefaultAdminUser string
 	DefaultAdminPass string
+	SingboxDir       string
+	SingboxBin       string
 }
 
 func Load() *Config {
@@ -22,6 +24,8 @@ func Load() *Config {
 		JWTSecret:        os.Getenv("JWT_SECRET"),
 		DefaultAdminUser: getenv("DEFAULT_ADMIN_USER", "admin"),
 		DefaultAdminPass: getenv("DEFAULT_ADMIN_PASS", "mnice7082"),
+		SingboxDir:       getenv("SINGBOX_DIR", "./singbox"),
+		SingboxBin:       os.Getenv("SINGBOX_BIN"),
 	}
 	if c.JWTSecret == "" {
 		c.JWTSecret = randomHex(32)

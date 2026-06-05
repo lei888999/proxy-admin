@@ -11,7 +11,7 @@ import (
 	"singbox-admin/internal/database"
 	"singbox-admin/internal/handlers"
 	"singbox-admin/internal/middleware"
-	"singbox-admin/internal/service"
+	"singbox-admin/internal/singbox"
 	"singbox-admin/internal/web"
 )
 
@@ -25,7 +25,7 @@ func main() {
 
 	jm := auth.NewJWTManager(cfg.JWTSecret, 7*24*time.Hour)
 	authHandler := handlers.NewAuthHandler(db, jm)
-	statusHandler := handlers.NewStatusHandler(service.NewSingboxService(service.NewExecRunner()))
+	sbHandler := handlers.NewSingboxHandler(singbox.NewDefault(cfg.SingboxDir, cfg.SingboxBin))
 
 	r := gin.Default()
 
@@ -33,7 +33,13 @@ func main() {
 	{
 		api.POST("/auth/login", authHandler.Login)
 		api.POST("/auth/logout", authHandler.Logout)
-		api.GET("/status", middleware.RequireAuth(jm), statusHandler.Get)
+
+		authed := api.Group("", middleware.RequireAuth(jm))
+		authed.GET("/status", sbHandler.Status)
+		authed.GET("/singbox/config", sbHandler.GetConfig)
+		authed.PUT("/singbox/config", sbHandler.PutConfig)
+		authed.POST("/singbox/start", sbHandler.Start)
+		authed.POST("/singbox/stop", sbHandler.Stop)
 	}
 
 	web.Register(r) // static frontend + SPA fallback

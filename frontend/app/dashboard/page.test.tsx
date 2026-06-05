@@ -1,34 +1,46 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import DashboardPage from "./page";
-import { UnauthorizedError } from "@/lib/api";
 
 const pushMock = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: pushMock }),
+  usePathname: () => "/dashboard",
+}));
 
 const getStatusMock = vi.fn();
-const logoutMock = vi.fn();
-vi.mock("@/lib/api", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
-  return { ...actual, getStatus: () => getStatusMock(), logout: () => logoutMock() };
-});
+const startMock = vi.fn();
+const stopMock = vi.fn();
+vi.mock("@/lib/api", () => ({
+  getStatus: () => getStatusMock(),
+  startSingbox: () => startMock(),
+  stopSingbox: () => stopMock(),
+  logout: vi.fn(),
+  UnauthorizedError: class extends Error {},
+}));
 
 beforeEach(() => {
   pushMock.mockClear();
   getStatusMock.mockReset();
-  logoutMock.mockReset();
+  startMock.mockReset();
+  stopMock.mockReset();
 });
 
 describe("DashboardPage", () => {
-  it("shows sing-box status when authorized", async () => {
-    getStatusMock.mockResolvedValue({ installed: true, version: "1.9.0", running: false });
+  it("显示运行状态与版本", async () => {
+    getStatusMock.mockResolvedValue({ installed: true, version: "1.14.0", running: true, hasConfig: true });
     render(<DashboardPage />);
-    await waitFor(() => expect(screen.getByText(/1\.9\.0/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/运行中/)).toBeInTheDocument());
+    expect(screen.getByText(/1\.14\.0/)).toBeInTheDocument();
   });
 
-  it("redirects to login on 401", async () => {
-    getStatusMock.mockRejectedValue(new UnauthorizedError());
+  it("点击启动调用 startSingbox", async () => {
+    getStatusMock.mockResolvedValue({ installed: true, version: "1.14.0", running: false, hasConfig: true });
+    startMock.mockResolvedValue({ installed: true, version: "1.14.0", running: true, hasConfig: true });
     render(<DashboardPage />);
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/login"));
+    const btn = await screen.findByRole("button", { name: /启动/ });
+    await userEvent.click(btn);
+    expect(startMock).toHaveBeenCalled();
   });
 });

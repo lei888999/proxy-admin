@@ -3,8 +3,8 @@ services:
     build:
       context: .
       args:
-        # Override to pin a sing-box release, e.g. ghcr.io/sagernet/sing-box:v1.11.4
-        SING_BOX_IMAGE: ${SING_BOX_IMAGE:-ghcr.io/sagernet/sing-box:latest}
+        # Override to pin a different sing-box release.
+        SING_BOX_IMAGE: ${SING_BOX_IMAGE:-ghcr.io/sagernet/sing-box:v1.14.0}
     image: sing-box-admin:latest
     container_name: sing-box-admin
     restart: unless-stopped
@@ -14,6 +14,7 @@ services:
     environment:
       PORT: "8080"
       DB_PATH: /data/sing-box-admin.db
+      SINGBOX_DIR: /data/singbox
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required - set it in .env}
       DEFAULT_ADMIN_USER: ${DEFAULT_ADMIN_USER:-admin}
       DEFAULT_ADMIN_PASS: ${DEFAULT_ADMIN_PASS:-mnice7082}
