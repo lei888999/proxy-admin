@@ -87,6 +87,46 @@ func TestHysteria2Driver(t *testing.T) {
 
 func toJSON(v any) string { b, _ := json.Marshal(v); return string(b) }
 
+func TestVlessClashProxy(t *testing.T) {
+	d, _ := Get("vless-reality")
+	s, _ := d.BuildSettings(map[string]any{"handshake": "www.example.com"})
+	p, err := d.ClashProxy("v1", "vps.example.com", 8443, s, Cred{Name: "u1", Credential: "uuid-1"})
+	if err != nil {
+		t.Fatalf("ClashProxy: %v", err)
+	}
+	if p["name"] != "v1" || p["type"] != "vless" || p["server"] != "vps.example.com" {
+		t.Fatalf("proxy=%v", p)
+	}
+	if p["uuid"] != "uuid-1" || p["port"] != uint16(8443) {
+		t.Fatalf("proxy=%v", p)
+	}
+	ro := p["reality-opts"].(map[string]any)
+	if ro["public-key"] == "" || ro["public-key"] == nil {
+		t.Fatal("missing reality public-key")
+	}
+	if strings.Contains(toJSON(p), "private") {
+		t.Fatal("clash proxy leaked a private key")
+	}
+}
+
+func TestHy2ClashProxy(t *testing.T) {
+	d, _ := Get("hysteria2")
+	s, _ := d.BuildSettings(map[string]any{"serverName": "bing.com"})
+	p, err := d.ClashProxy("h1", "vps.example.com", 443, s, Cred{Name: "u1", Credential: "pw-1"})
+	if err != nil {
+		t.Fatalf("ClashProxy: %v", err)
+	}
+	if p["type"] != "hysteria2" || p["password"] != "pw-1" || p["sni"] != "bing.com" {
+		t.Fatalf("proxy=%v", p)
+	}
+	if p["skip-cert-verify"] != true {
+		t.Fatalf("expected skip-cert-verify true: %v", p)
+	}
+	if strings.Contains(toJSON(p), "PEM") || strings.Contains(toJSON(p), "BEGIN") {
+		t.Fatal("clash proxy leaked TLS cert or key material")
+	}
+}
+
 func TestVlessUpdateAndReset(t *testing.T) {
 	d, _ := Get("vless-reality")
 	s, _ := d.BuildSettings(map[string]any{"handshake": "a.com"})

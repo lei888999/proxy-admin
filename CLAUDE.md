@@ -76,6 +76,7 @@ Both modes deliberately never overwrite the VPS-side `.env` or the database.
 - **TDD.** Every backend package and the frontend logic/pages were built test-first; keep adding tests alongside code.
 - Default admin (`admin`/`mnice7082`) is seeded only when the `admins` table is empty (`internal/database/database.go`). If `JWT_SECRET` is unset a random one is generated and logged — sessions then reset on restart, so set it in production.
 - Frontend components come from shadcn/ui's `base-nova` style, which is built on `@base-ui/react` (not Radix); the `cn` helper is in `frontend/lib/utils.ts`.
+- **shadcn-only UI.** All UI is built from shadcn/ui primitives (`base-nova`). Don't hand-roll raw `<button>`/`<input>`/form controls or bespoke interactive containers where a shadcn component exists — add the component via the shadcn workflow and style through the theme tokens in `frontend/app/globals.css` instead.
 
 ## Working in this codebase
 

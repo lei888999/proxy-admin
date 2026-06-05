@@ -19,6 +19,8 @@ vi.mock("@/lib/api", () => ({
   updateUser: vi.fn(),
   resetUserCreds: vi.fn(),
   deleteUser: (...a: unknown[]) => deleteUserMock(...a),
+  resetUserTraffic: vi.fn(),
+  getLiveTraffic: vi.fn(),
   getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true }),
   logout: vi.fn(),
   UnauthorizedError: class extends Error {},
@@ -36,7 +38,7 @@ beforeEach(() => {
 describe("UsersPage", () => {
   it("列表显示用户的 UUID 与明文密码", async () => {
     listUsersMock.mockResolvedValue([
-      { id: 1, name: "alice", uuid: "the-uuid", password: "the-pass", inboundIds: [1], inboundTags: ["v1"] },
+      { id: 1, name: "alice", uuid: "the-uuid", password: "the-pass", subToken: "t", upBytes: 0, downBytes: 0, inboundIds: [1], inboundTags: ["v1"] },
     ]);
     render(<UsersPage />);
     await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
@@ -57,7 +59,7 @@ describe("UsersPage", () => {
 
   it("删除用户需二次确认", async () => {
     listUsersMock.mockResolvedValue([
-      { id: 7, name: "alice", uuid: "u", password: "p", inboundIds: [], inboundTags: [] },
+      { id: 7, name: "alice", uuid: "u", password: "p", subToken: "t", upBytes: 0, downBytes: 0, inboundIds: [], inboundTags: [] },
     ]);
     render(<UsersPage />);
     await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
@@ -65,5 +67,27 @@ describe("UsersPage", () => {
     expect(deleteUserMock).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: /确认删除/ }));
     await waitFor(() => expect(deleteUserMock).toHaveBeenCalledWith(7));
+  });
+
+  it("订阅按钮复制订阅链接", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    listUsersMock.mockResolvedValue([
+      { id: 1, name: "alice", uuid: "u", password: "p", subToken: "tok123", upBytes: 0, downBytes: 0, inboundIds: [], inboundTags: [] },
+    ]);
+    render(<UsersPage />);
+    await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /订阅/ }));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("/sub/tok123"));
+  });
+
+  it("显示用户上下行总量", async () => {
+    listUsersMock.mockResolvedValue([
+      { id: 1, name: "alice", uuid: "u", password: "p", subToken: "t", upBytes: 1024, downBytes: 1048576, inboundIds: [], inboundTags: [] },
+    ]);
+    render(<UsersPage />);
+    await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
+    expect(screen.getByText("1.0 KB")).toBeInTheDocument();
+    expect(screen.getByText("1.0 MB")).toBeInTheDocument();
   });
 });

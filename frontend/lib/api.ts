@@ -96,6 +96,9 @@ export interface User {
   name: string;
   uuid: string;
   password: string;
+  subToken: string;
+  upBytes: number;
+  downBytes: number;
   inboundIds: number[];
   inboundTags: string[];
 }
@@ -201,4 +204,20 @@ export async function applySingbox(): Promise<SingboxStatus> {
     throw new Error(b.detail || b.error || "应用失败");
   }
   return res.json();
+}
+
+export interface LiveTraffic {
+  up: number;
+  down: number;
+}
+
+export async function getLiveTraffic(): Promise<LiveTraffic> {
+  const res = await request("/api/traffic/live");
+  if (!res.ok) throw new Error("加载实时流量失败");
+  return res.json();
+}
+
+export async function resetUserTraffic(id: number): Promise<void> {
+  const res = await request(`/api/users/${id}/reset-traffic`, { method: "POST" });
+  if (!res.ok) throw new Error("重置流量失败");
 }

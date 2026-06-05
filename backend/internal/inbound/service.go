@@ -3,6 +3,7 @@ package inbound
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"strings"
 
@@ -38,6 +39,12 @@ func genPassword() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func genToken() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 type InboundView struct {
@@ -176,6 +183,9 @@ type UserView struct {
 	Name        string   `json:"name"`
 	UUID        string   `json:"uuid"`
 	Password    string   `json:"password"`
+	SubToken    string   `json:"subToken"`
+	UpBytes     int64    `json:"upBytes"`
+	DownBytes   int64    `json:"downBytes"`
 	InboundIDs  []uint   `json:"inboundIds"`
 	InboundTags []string `json:"inboundTags"`
 }
@@ -187,7 +197,8 @@ func (s *Service) ListUserViews() ([]UserView, error) {
 	}
 	views := make([]UserView, 0, len(us))
 	for _, u := range us {
-		v := UserView{ID: u.ID, Name: u.Name, UUID: u.UUID, Password: u.Password, InboundIDs: []uint{}, InboundTags: []string{}}
+		v := UserView{ID: u.ID, Name: u.Name, UUID: u.UUID, Password: u.Password, SubToken: u.SubToken,
+			UpBytes: u.UpBytes, DownBytes: u.DownBytes, InboundIDs: []uint{}, InboundTags: []string{}}
 		for _, in := range u.Inbounds {
 			v.InboundIDs = append(v.InboundIDs, in.ID)
 			v.InboundTags = append(v.InboundTags, in.Tag)
@@ -212,7 +223,7 @@ func (s *Service) CreateUser(name string, inboundIDs []uint) (models.User, error
 	if name == "" {
 		return models.User{}, ErrInvalidName
 	}
-	u := models.User{Name: name, UUID: genUUID(), Password: genPassword()}
+	u := models.User{Name: name, UUID: genUUID(), Password: genPassword(), SubToken: genToken()}
 	if err := s.db.Create(&u).Error; err != nil {
 		return models.User{}, err
 	}
@@ -246,11 +257,26 @@ func (s *Service) ResetUserCreds(id uint) (models.User, error) {
 	if err := s.db.First(&u, id).Error; err != nil {
 		return models.User{}, ErrNotFound
 	}
-	u.UUID, u.Password = genUUID(), genPassword()
+	u.UUID, u.Password, u.SubToken = genUUID(), genPassword(), genToken()
 	if err := s.db.Save(&u).Error; err != nil {
 		return models.User{}, err
 	}
 	return u, s.Regenerate()
+}
+
+// BackfillUserTokens gives a SubToken to any pre-existing user that lacks one.
+func (s *Service) BackfillUserTokens() error {
+	var us []models.User
+	if err := s.db.Where("sub_token = '' OR sub_token IS NULL").Find(&us).Error; err != nil {
+		return err
+	}
+	for i := range us {
+		us[i].SubToken = genToken()
+		if err := s.db.Model(&us[i]).Update("sub_token", us[i].SubToken).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) DeleteUser(id uint) error {
@@ -267,12 +293,79 @@ func (s *Service) DeleteUser(id uint) error {
 	return s.Regenerate()
 }
 
+// AddTraffic accumulates a delta onto a user's cumulative counters.
+func (s *Service) AddTraffic(userID uint, up, down int64) error {
+	return s.db.Model(&models.User{}).Where("id = ?", userID).
+		UpdateColumns(map[string]any{
+			"up_bytes":   gorm.Expr("up_bytes + ?", up),
+			"down_bytes": gorm.Expr("down_bytes + ?", down),
+		}).Error
+}
+
+// ResetUserTraffic zeroes a user's cumulative counters.
+func (s *Service) ResetUserTraffic(id uint) error {
+	var u models.User
+	if err := s.db.First(&u, id).Error; err != nil {
+		return ErrNotFound
+	}
+	return s.db.Model(&u).UpdateColumns(map[string]any{"up_bytes": 0, "down_bytes": 0}).Error
+}
+
+const (
+	metaClashAddr   = "clash_api_addr"
+	metaClashSecret = "clash_api_secret"
+	metaV2RayAddr   = "v2ray_api_addr"
+
+	defaultClashAddr = "127.0.0.1:9090"
+	defaultV2RayAddr = "127.0.0.1:9091"
+)
+
+// APIConfig returns the experimental API endpoints, generating + persisting
+// them in the meta table on first use so config and pollers stay in sync.
+func (s *Service) APIConfig() (ExperimentalConfig, error) {
+	get := func(key, def string) (string, error) {
+		var m models.Meta
+		err := s.db.First(&m, "key = ?", key).Error
+		if err == nil {
+			return m.Value, nil
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", err
+		}
+		val := def
+		if key == metaClashSecret {
+			val = genToken()
+		}
+		if err := s.db.Create(&models.Meta{Key: key, Value: val}).Error; err != nil {
+			return "", err
+		}
+		return val, nil
+	}
+	clashAddr, err := get(metaClashAddr, defaultClashAddr)
+	if err != nil {
+		return ExperimentalConfig{}, err
+	}
+	secret, err := get(metaClashSecret, "")
+	if err != nil {
+		return ExperimentalConfig{}, err
+	}
+	v2Addr, err := get(metaV2RayAddr, defaultV2RayAddr)
+	if err != nil {
+		return ExperimentalConfig{}, err
+	}
+	return ExperimentalConfig{ClashAddr: clashAddr, ClashSecret: secret, V2RayAddr: v2Addr}, nil
+}
+
 func (s *Service) Regenerate() error {
 	ins, err := s.listInbounds()
 	if err != nil {
 		return err
 	}
-	content, err := Generate(ins)
+	exp, err := s.APIConfig()
+	if err != nil {
+		return err
+	}
+	content, err := Generate(ins, exp)
 	if err != nil {
 		return err
 	}

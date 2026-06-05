@@ -8,7 +8,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
   usePathname: () => "/dashboard",
 }));
-const getStatusMock = vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: false });
+
+const getStatusMock = vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true });
 const logoutMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/api", () => ({
   getStatus: () => getStatusMock(),
@@ -22,12 +23,19 @@ beforeEach(() => {
 });
 
 describe("AppShell", () => {
-  it("renders nav items 概览 入站 用户 配置", () => {
-    render(<AppShell><div>x</div></AppShell>);
-    expect(screen.getByRole("link", { name: /概览/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /入站/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /用户/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /配置/ })).toBeInTheDocument();
+  it("renders grouped nav labels and a scrollable main", () => {
+    render(<AppShell><div>content</div></AppShell>);
+    // group heading
+    expect(screen.getByText("概览", { selector: "p" })).toBeInTheDocument();
+    // nav destinations
+    expect(screen.getByRole("link", { name: "入站" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "用户" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "配置" })).toBeInTheDocument();
+    // main is the scroll container
+    const main = screen.getByRole("main");
+    expect(main.className).toContain("overflow-y-auto");
+    // content rendered
+    expect(screen.getByText("content")).toBeInTheDocument();
   });
 
   it("logout button calls logout and redirects", async () => {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"singbox-admin/internal/inbound"
 	"singbox-admin/internal/middleware"
 	"singbox-admin/internal/singbox"
+	"singbox-admin/internal/traffic"
 	"singbox-admin/internal/web"
 )
 
@@ -34,8 +36,25 @@ func main() {
 	if err := inbound.SeedDefaults(inbSvc); err != nil {
 		log.Fatalf("seed defaults: %v", err)
 	}
+	if err := inbSvc.BackfillUserTokens(); err != nil {
+		log.Fatalf("backfill tokens: %v", err)
+	}
+
+	exp, err := inbSvc.APIConfig()
+	if err != nil {
+		log.Fatalf("api config: %v", err)
+	}
+	if statsClient, err := traffic.NewStatsClient(exp.V2RayAddr); err != nil {
+		log.Printf("traffic stats disabled: %v", err)
+	} else {
+		poller := traffic.NewPoller(statsClient, inbSvc, 10*time.Second)
+		go poller.Run(context.Background())
+	}
+
 	inbHandler := handlers.NewInboundHandler(inbSvc, sbSvc)
 	userHandler := handlers.NewUserHandler(inbSvc)
+	subHandler := handlers.NewSubscriptionHandler(inbSvc, cfg.ServerHost)
+	trafficHandler := handlers.NewTrafficHandler(exp.ClashAddr, exp.ClashSecret)
 
 	r := gin.Default()
 
@@ -63,8 +82,13 @@ func main() {
 		authed.POST("/users", userHandler.Create)
 		authed.PUT("/users/:id", userHandler.Update)
 		authed.POST("/users/:id/reset", userHandler.Reset)
+		authed.POST("/users/:id/reset-traffic", userHandler.ResetTraffic)
 		authed.DELETE("/users/:id", userHandler.Delete)
+
+		authed.GET("/traffic/live", trafficHandler.Live)
 	}
+
+	r.GET("/sub/:token", subHandler.Get)
 
 	web.Register(r)
 
