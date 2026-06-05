@@ -1,17 +1,26 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { AppShell } from "./app-shell";
 
+const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: pushMock }),
   usePathname: () => "/dashboard",
 }));
 
+const getStatusMock = vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true });
+const logoutMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/api", () => ({
-  getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true }),
-  logout: vi.fn(),
+  getStatus: () => getStatusMock(),
+  logout: () => logoutMock(),
   UnauthorizedError: class extends Error {},
 }));
+
+beforeEach(() => {
+  pushMock.mockClear();
+  logoutMock.mockClear();
+});
 
 describe("AppShell", () => {
   it("renders grouped nav labels and a scrollable main", () => {
@@ -27,5 +36,12 @@ describe("AppShell", () => {
     expect(main.className).toContain("overflow-y-auto");
     // content rendered
     expect(screen.getByText("content")).toBeInTheDocument();
+  });
+
+  it("logout button calls logout and redirects", async () => {
+    render(<AppShell><div /></AppShell>);
+    await userEvent.click(screen.getByRole("button", { name: /退出登录/ }));
+    expect(logoutMock).toHaveBeenCalled();
+    expect(pushMock).toHaveBeenCalledWith("/login");
   });
 });
