@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getStatus, startSingbox, stopSingbox, UnauthorizedError, SingboxStatus } from "@/lib/api";
+import { getStatus, startSingbox, stopSingbox, applySingbox, UnauthorizedError, SingboxStatus } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,6 +87,14 @@ export default function DashboardPage() {
                   onClick={() => run(stopSingbox)}
                 >
                   停止
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  disabled={busy || !status.installed}
+                  onClick={() => run(applySingbox)}
+                >
+                  应用并重启
                 </Button>
               </div>
             </>
