@@ -132,3 +132,38 @@ func TestResetInboundKeysChangesKey(t *testing.T) {
 		t.Fatal("reset must change the key")
 	}
 }
+
+func TestCreateUserAssignsSubToken(t *testing.T) {
+	s, _ := newTestService(t)
+	u, err := s.CreateUser("alice", nil)
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if len(u.SubToken) != 32 {
+		t.Fatalf("sub token len=%d, want 32", len(u.SubToken))
+	}
+	old := u.SubToken
+	u2, err := s.ResetUserCreds(u.ID)
+	if err != nil {
+		t.Fatalf("ResetUserCreds: %v", err)
+	}
+	if u2.SubToken == old || len(u2.SubToken) != 32 {
+		t.Fatalf("reset must rotate sub token; old=%s new=%s", old, u2.SubToken)
+	}
+}
+
+func TestBackfillUserTokens(t *testing.T) {
+	s, _ := newTestService(t)
+	u := models.User{Name: "old", UUID: "x", Password: "y"}
+	if err := s.db.Create(&u).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := s.BackfillUserTokens(); err != nil {
+		t.Fatalf("BackfillUserTokens: %v", err)
+	}
+	var got models.User
+	s.db.First(&got, u.ID)
+	if len(got.SubToken) != 32 {
+		t.Fatalf("token not backfilled: %q", got.SubToken)
+	}
+}

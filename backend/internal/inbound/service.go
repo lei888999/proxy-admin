@@ -3,6 +3,7 @@ package inbound
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"strings"
 
@@ -38,6 +39,12 @@ func genPassword() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func genToken() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 type InboundView struct {
@@ -176,6 +183,7 @@ type UserView struct {
 	Name        string   `json:"name"`
 	UUID        string   `json:"uuid"`
 	Password    string   `json:"password"`
+	SubToken    string   `json:"subToken"`
 	InboundIDs  []uint   `json:"inboundIds"`
 	InboundTags []string `json:"inboundTags"`
 }
@@ -187,7 +195,7 @@ func (s *Service) ListUserViews() ([]UserView, error) {
 	}
 	views := make([]UserView, 0, len(us))
 	for _, u := range us {
-		v := UserView{ID: u.ID, Name: u.Name, UUID: u.UUID, Password: u.Password, InboundIDs: []uint{}, InboundTags: []string{}}
+		v := UserView{ID: u.ID, Name: u.Name, UUID: u.UUID, Password: u.Password, SubToken: u.SubToken, InboundIDs: []uint{}, InboundTags: []string{}}
 		for _, in := range u.Inbounds {
 			v.InboundIDs = append(v.InboundIDs, in.ID)
 			v.InboundTags = append(v.InboundTags, in.Tag)
@@ -212,7 +220,7 @@ func (s *Service) CreateUser(name string, inboundIDs []uint) (models.User, error
 	if name == "" {
 		return models.User{}, ErrInvalidName
 	}
-	u := models.User{Name: name, UUID: genUUID(), Password: genPassword()}
+	u := models.User{Name: name, UUID: genUUID(), Password: genPassword(), SubToken: genToken()}
 	if err := s.db.Create(&u).Error; err != nil {
 		return models.User{}, err
 	}
@@ -246,11 +254,26 @@ func (s *Service) ResetUserCreds(id uint) (models.User, error) {
 	if err := s.db.First(&u, id).Error; err != nil {
 		return models.User{}, ErrNotFound
 	}
-	u.UUID, u.Password = genUUID(), genPassword()
+	u.UUID, u.Password, u.SubToken = genUUID(), genPassword(), genToken()
 	if err := s.db.Save(&u).Error; err != nil {
 		return models.User{}, err
 	}
 	return u, s.Regenerate()
+}
+
+// BackfillUserTokens gives a SubToken to any pre-existing user that lacks one.
+func (s *Service) BackfillUserTokens() error {
+	var us []models.User
+	if err := s.db.Where("sub_token = '' OR sub_token IS NULL").Find(&us).Error; err != nil {
+		return err
+	}
+	for i := range us {
+		us[i].SubToken = genToken()
+		if err := s.db.Model(&us[i]).Update("sub_token", us[i].SubToken).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) DeleteUser(id uint) error {
