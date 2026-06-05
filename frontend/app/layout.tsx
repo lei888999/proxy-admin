@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sing Box Admin",
+  title: "Sing-Box Admin",
   description: "Admin panel for sing-box",
 };
 
