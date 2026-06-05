@@ -30,7 +30,10 @@ func main() {
 	sbSvc := singbox.NewDefault(cfg.SingboxDir, cfg.SingboxBin)
 	sbHandler := handlers.NewSingboxHandler(sbSvc)
 
-	inbSvc := inbound.NewService(db, sbSvc, inbound.NewKeyGen())
+	inbSvc := inbound.NewService(db, sbSvc)
+	if err := inbound.SeedDefaults(inbSvc); err != nil {
+		log.Fatalf("seed defaults: %v", err)
+	}
 	inbHandler := handlers.NewInboundHandler(inbSvc, sbSvc)
 
 	r := gin.Default()
@@ -48,6 +51,7 @@ func main() {
 		authed.POST("/singbox/stop", sbHandler.Stop)
 		authed.POST("/singbox/apply", inbHandler.Apply)
 
+		authed.GET("/inbound-types", inbHandler.ListTypes)
 		authed.GET("/inbounds", inbHandler.ListInbounds)
 		authed.POST("/inbounds", inbHandler.CreateInbound)
 		authed.DELETE("/inbounds/:id", inbHandler.DeleteInbound)
