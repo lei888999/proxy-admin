@@ -74,3 +74,78 @@ export async function saveConfig(content: string): Promise<void> {
     throw new Error(body.error || "保存失败");
   }
 }
+
+export interface Inbound {
+  id: number;
+  tag: string;
+  port: number;
+  flow: string;
+  realityPublicKey: string;
+  realityShortId: string;
+  serverName: string;
+  users?: SingboxUser[];
+}
+
+export interface SingboxUser {
+  id: number;
+  inboundId: number;
+  name: string;
+  uuid: string;
+}
+
+export async function listInbounds(): Promise<Inbound[]> {
+  const res = await request("/api/inbounds");
+  if (!res.ok) throw new Error("加载入站失败");
+  return res.json();
+}
+
+export async function createInbound(tag: string, port: number, handshake: string): Promise<Inbound> {
+  const res = await request("/api/inbounds", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tag, port, handshake }),
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new Error(b.error || "创建入站失败");
+  }
+  return res.json();
+}
+
+export async function deleteInbound(id: number): Promise<void> {
+  const res = await request(`/api/inbounds/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("删除入站失败");
+}
+
+export async function listUsers(inboundID: number): Promise<SingboxUser[]> {
+  const res = await request(`/api/inbounds/${inboundID}/users`);
+  if (!res.ok) throw new Error("加载用户失败");
+  return res.json();
+}
+
+export async function createUser(inboundID: number, name: string): Promise<SingboxUser> {
+  const res = await request(`/api/inbounds/${inboundID}/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new Error(b.error || "创建用户失败");
+  }
+  return res.json();
+}
+
+export async function deleteUser(id: number): Promise<void> {
+  const res = await request(`/api/users/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("删除用户失败");
+}
+
+export async function applySingbox(): Promise<SingboxStatus> {
+  const res = await request("/api/singbox/apply", { method: "POST" });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new Error(b.detail || b.error || "应用失败");
+  }
+  return res.json();
+}

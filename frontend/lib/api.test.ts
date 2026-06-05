@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { login, getStatus, UnauthorizedError, startSingbox, getConfig, saveConfig } from "./api";
+import { login, getStatus, UnauthorizedError, startSingbox, getConfig, saveConfig, listInbounds, createInbound, applySingbox } from "./api";
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -68,5 +68,25 @@ describe("api", () => {
     const [, init] = fetchMock.mock.calls[0];
     expect(init.method).toBe("PUT");
     expect(JSON.parse(init.body).content).toBe('{"log":{}}');
+  });
+
+  it("listInbounds returns array", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify([{ id: 1, tag: "v1" }]), { status: 200 })));
+    const ins = await listInbounds();
+    expect(ins[0].tag).toBe("v1");
+  });
+
+  it("createInbound posts body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 1, tag: "v1" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await createInbound("v1", 443, "www.microsoft.com");
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body).port).toBe(443);
+  });
+
+  it("applySingbox throws backend error on failure", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "sing-box not installed" }), { status: 400 })));
+    await expect(applySingbox()).rejects.toThrow(/not installed/);
   });
 });
