@@ -34,8 +34,12 @@ func main() {
 	if err := inbound.SeedDefaults(inbSvc); err != nil {
 		log.Fatalf("seed defaults: %v", err)
 	}
+	if err := inbSvc.BackfillUserTokens(); err != nil {
+		log.Fatalf("backfill tokens: %v", err)
+	}
 	inbHandler := handlers.NewInboundHandler(inbSvc, sbSvc)
 	userHandler := handlers.NewUserHandler(inbSvc)
+	subHandler := handlers.NewSubscriptionHandler(inbSvc, cfg.ServerHost)
 
 	r := gin.Default()
 
@@ -65,6 +69,8 @@ func main() {
 		authed.POST("/users/:id/reset", userHandler.Reset)
 		authed.DELETE("/users/:id", userHandler.Delete)
 	}
+
+	r.GET("/sub/:token", subHandler.Get)
 
 	web.Register(r)
 
