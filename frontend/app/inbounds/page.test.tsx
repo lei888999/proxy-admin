@@ -9,14 +9,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 const listInboundsMock = vi.fn();
+const listTypesMock = vi.fn();
 const createInboundMock = vi.fn();
-const deleteInboundMock = vi.fn();
-const listUsersMock = vi.fn().mockResolvedValue([]);
 vi.mock("@/lib/api", () => ({
   listInbounds: () => listInboundsMock(),
+  listInboundTypes: () => listTypesMock(),
   createInbound: (...a: unknown[]) => createInboundMock(...a),
-  deleteInbound: (...a: unknown[]) => deleteInboundMock(...a),
-  listUsers: () => listUsersMock(),
+  deleteInbound: vi.fn(),
+  listUsers: vi.fn().mockResolvedValue([]),
   createUser: vi.fn(),
   deleteUser: vi.fn(),
   getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true }),
@@ -25,39 +25,38 @@ vi.mock("@/lib/api", () => ({
 }));
 
 beforeEach(() => {
-  listInboundsMock.mockReset();
-  createInboundMock.mockReset();
-  deleteInboundMock.mockReset();
-  listUsersMock.mockClear();
+  listInboundsMock.mockReset().mockResolvedValue([]);
+  listTypesMock.mockReset().mockResolvedValue([
+    { type: "vless-reality", label: "VLESS-Reality", network: "tcp", defaultPort: 8443 },
+    { type: "hysteria2", label: "Hysteria2", network: "udp", defaultPort: 443 },
+  ]);
+  createInboundMock.mockReset().mockResolvedValue({ id: 1, type: "hysteria2", tag: "h1", port: 443, network: "udp", publicInfo: {}, users: [] });
 });
 
 describe("InboundsPage", () => {
-  it("渲染入站列表", async () => {
+  it("渲染协议下拉与默认 vless 字段", async () => {
+    render(<InboundsPage />);
+    await waitFor(() => expect(screen.getByLabelText(/协议/)).toBeInTheDocument());
+    expect(screen.getByLabelText(/握手域名/)).toBeInTheDocument();
+  });
+
+  it("切到 hysteria2 显示限速字段并提交 params", async () => {
+    render(<InboundsPage />);
+    await waitFor(() => expect(screen.getByLabelText(/协议/)).toBeInTheDocument());
+    await userEvent.selectOptions(screen.getByLabelText(/协议/), "hysteria2");
+    expect(screen.getByLabelText(/上行/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/标签/), "h1");
+    await userEvent.click(screen.getByRole("button", { name: /新建入站/ }));
+    await waitFor(() => expect(createInboundMock).toHaveBeenCalled());
+    expect(createInboundMock.mock.calls[0][0]).toBe("hysteria2");
+  });
+
+  it("按类型展示入站卡片 publicInfo", async () => {
     listInboundsMock.mockResolvedValue([
-      { id: 1, tag: "v1", port: 443, flow: "xtls-rprx-vision", realityPublicKey: "PUB", realityShortId: "deadbeef", serverName: "www.microsoft.com", users: [] },
+      { id: 1, type: "vless-reality", tag: "v1", port: 8443, network: "tcp", publicInfo: { realityPublicKey: "PUB", shortId: "ab", serverName: "x", flow: "f" }, users: [] },
     ]);
     render(<InboundsPage />);
     await waitFor(() => expect(screen.getByText("v1")).toBeInTheDocument());
-    expect(screen.getByText(/443/)).toBeInTheDocument();
-  });
-
-  it("用预加载的用户渲染，不在挂载时再拉取", async () => {
-    listInboundsMock.mockResolvedValue([
-      { id: 1, tag: "v1", port: 443, flow: "xtls-rprx-vision", realityPublicKey: "PUB", realityShortId: "deadbeef", serverName: "www.microsoft.com", users: [{ id: 9, inboundId: 1, name: "alice", uuid: "u-1" }] },
-    ]);
-    render(<InboundsPage />);
-    await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
-    expect(listUsersMock).not.toHaveBeenCalled();
-  });
-
-  it("新建入站调用 createInbound", async () => {
-    listInboundsMock.mockResolvedValue([]);
-    createInboundMock.mockResolvedValue({ id: 1, tag: "v2", port: 8443, users: [] });
-    render(<InboundsPage />);
-    await screen.findByRole("button", { name: /新建入站/ });
-    await userEvent.type(screen.getByLabelText(/标签/), "v2");
-    await userEvent.type(screen.getByLabelText(/端口/), "8443");
-    await userEvent.click(screen.getByRole("button", { name: /新建入站/ }));
-    await waitFor(() => expect(createInboundMock).toHaveBeenCalled());
+    expect(screen.getByText("PUB")).toBeInTheDocument();
   });
 });

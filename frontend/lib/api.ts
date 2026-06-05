@@ -75,22 +75,28 @@ export async function saveConfig(content: string): Promise<void> {
   }
 }
 
-export interface Inbound {
-  id: number;
-  tag: string;
-  port: number;
-  flow: string;
-  realityPublicKey: string;
-  realityShortId: string;
-  serverName: string;
-  users?: SingboxUser[];
+export interface InboundType {
+  type: string;
+  label: string;
+  network: string;
+  defaultPort: number;
 }
 
 export interface SingboxUser {
   id: number;
   inboundId: number;
   name: string;
-  uuid: string;
+  credential: string;
+}
+
+export interface Inbound {
+  id: number;
+  type: string;
+  tag: string;
+  port: number;
+  network: string;
+  publicInfo: Record<string, unknown>;
+  users?: SingboxUser[];
 }
 
 export async function listInbounds(): Promise<Inbound[]> {
@@ -99,11 +105,22 @@ export async function listInbounds(): Promise<Inbound[]> {
   return res.json();
 }
 
-export async function createInbound(tag: string, port: number, handshake: string): Promise<Inbound> {
+export async function listInboundTypes(): Promise<InboundType[]> {
+  const res = await request("/api/inbound-types");
+  if (!res.ok) throw new Error("加载协议类型失败");
+  return res.json();
+}
+
+export async function createInbound(
+  type: string,
+  tag: string,
+  port: number,
+  params: Record<string, unknown>,
+): Promise<Inbound> {
   const res = await request("/api/inbounds", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tag, port, handshake }),
+    body: JSON.stringify({ type, tag, port, params }),
   });
   if (!res.ok) {
     const b = await res.json().catch(() => ({}));
