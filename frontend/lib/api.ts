@@ -96,6 +96,9 @@ export interface User {
   name: string;
   uuid: string;
   password: string;
+  subToken: string;
+  upBytes: number;
+  downBytes: number;
   inboundIds: number[];
   inboundTags: string[];
 }

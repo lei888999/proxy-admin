@@ -64,6 +64,10 @@ export default function UsersPage() {
     refresh();
   }
 
+  function copySub(token: string) {
+    navigator.clipboard.writeText(`${window.location.origin}/sub/${token}`);
+  }
+
   return (
     <AppShell>
       <div className="mb-6 flex items-center justify-between">
@@ -86,6 +90,7 @@ export default function UsersPage() {
                 <span className="truncate font-mono text-xs">{u.password}</span>
                 <span className="truncate text-xs text-muted-foreground">{u.inboundTags.join(", ") || "—"}</span>
                 <span className="flex gap-2">
+                  <Button variant="outline" className="rounded-full" onClick={() => copySub(u.subToken)}>订阅</Button>
                   <Button variant="outline" className="rounded-full" onClick={() => { setError(""); setForm({ id: u.id, name: u.name, inboundIds: u.inboundIds }); }}>编辑</Button>
                   <Button variant="outline" className="rounded-full" onClick={() => onReset(u.id)}>重置凭证</Button>
                   <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(u)}>删除</Button>
