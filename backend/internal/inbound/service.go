@@ -16,7 +16,6 @@ var (
 	ErrPortInUse  = errors.New("port in use")
 )
 
-// ConfigWriter is satisfied by *singbox.Service (SaveConfig).
 type ConfigWriter interface {
 	SaveConfig(content string) error
 }
@@ -24,20 +23,53 @@ type ConfigWriter interface {
 type Service struct {
 	db     *gorm.DB
 	writer ConfigWriter
-	keygen KeyGen
 }
 
-func NewService(db *gorm.DB, writer ConfigWriter, keygen KeyGen) *Service {
-	return &Service{db: db, writer: writer, keygen: keygen}
+func NewService(db *gorm.DB, writer ConfigWriter) *Service {
+	return &Service{db: db, writer: writer}
 }
 
-func (s *Service) ListInbounds() ([]models.Inbound, error) {
+type InboundView struct {
+	ID         uint           `json:"id"`
+	Type       string         `json:"type"`
+	Tag        string         `json:"tag"`
+	Port       uint16         `json:"port"`
+	Network    string         `json:"network"`
+	PublicInfo map[string]any `json:"publicInfo"`
+	Users      []models.User  `json:"users"`
+}
+
+func (s *Service) listInbounds() ([]models.Inbound, error) {
 	var ins []models.Inbound
 	err := s.db.Preload("Users").Order("id").Find(&ins).Error
 	return ins, err
 }
 
-func (s *Service) CreateInbound(tag string, port uint16, handshake string) (models.Inbound, error) {
+func (s *Service) ListInboundViews() ([]InboundView, error) {
+	ins, err := s.listInbounds()
+	if err != nil {
+		return nil, err
+	}
+	views := make([]InboundView, 0, len(ins))
+	for _, in := range ins {
+		v := InboundView{ID: in.ID, Type: in.Type, Tag: in.Tag, Port: in.Port, Network: in.Network, Users: in.Users}
+		if d, ok := Get(in.Type); ok {
+			if pi, err := d.PublicInfo(in.Settings); err == nil {
+				v.PublicInfo = pi
+			}
+		}
+		views = append(views, v)
+	}
+	return views, nil
+}
+
+func (s *Service) Types() []TypeInfo { return Types() }
+
+func (s *Service) CreateInbound(typ, tag string, port uint16, params map[string]any) (models.Inbound, error) {
+	d, ok := Get(typ)
+	if !ok {
+		return models.Inbound{}, ErrUnknownType
+	}
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
 		return models.Inbound{}, ErrInvalidTag
@@ -47,19 +79,15 @@ func (s *Service) CreateInbound(tag string, port uint16, handshake string) (mode
 	if count > 0 {
 		return models.Inbound{}, ErrTagExists
 	}
-	s.db.Model(&models.Inbound{}).Where("port = ?", port).Count(&count)
+	s.db.Model(&models.Inbound{}).Where("port = ? AND network = ?", port, d.Network()).Count(&count)
 	if count > 0 {
 		return models.Inbound{}, ErrPortInUse
 	}
-	priv, pub, err := s.keygen.RealityKeypair()
+	settings, err := d.BuildSettings(params)
 	if err != nil {
 		return models.Inbound{}, err
 	}
-	in := models.Inbound{
-		Tag: tag, Port: port, Flow: "xtls-rprx-vision",
-		RealityPrivateKey: priv, RealityPublicKey: pub, RealityShortID: s.keygen.ShortID(),
-		Handshake: handshake, HandshakePort: 443, ServerName: handshake,
-	}
+	in := models.Inbound{Tag: tag, Type: typ, Network: d.Network(), Port: port, Settings: settings}
 	if err := s.db.Create(&in).Error; err != nil {
 		return models.Inbound{}, err
 	}
@@ -88,7 +116,11 @@ func (s *Service) CreateUser(inboundID uint, name string) (models.User, error) {
 	if err := s.db.First(&in, inboundID).Error; err != nil {
 		return models.User{}, ErrNotFound
 	}
-	u := models.User{InboundID: inboundID, Name: name, UUID: s.keygen.UUID()}
+	d, ok := Get(in.Type)
+	if !ok {
+		return models.User{}, ErrUnknownType
+	}
+	u := models.User{InboundID: inboundID, Name: name, Credential: d.NewCredential()}
 	if err := s.db.Create(&u).Error; err != nil {
 		return models.User{}, err
 	}
@@ -106,9 +138,8 @@ func (s *Service) DeleteUser(id uint) error {
 	return s.Regenerate()
 }
 
-// Regenerate rebuilds config.json from the current inbounds/users.
 func (s *Service) Regenerate() error {
-	ins, err := s.ListInbounds()
+	ins, err := s.listInbounds()
 	if err != nil {
 		return err
 	}

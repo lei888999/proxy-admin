@@ -13,8 +13,9 @@ import (
 )
 
 type InboundController interface {
-	ListInbounds() ([]models.Inbound, error)
-	CreateInbound(tag string, port uint16, handshake string) (models.Inbound, error)
+	ListInboundViews() ([]inbound.InboundView, error)
+	Types() []inbound.TypeInfo
+	CreateInbound(typ, tag string, port uint16, params map[string]any) (models.Inbound, error)
 	DeleteInbound(id uint) error
 	ListUsers(inboundID uint) ([]models.User, error)
 	CreateUser(inboundID uint, name string) (models.User, error)
@@ -43,36 +44,39 @@ func parseID(c *gin.Context) (uint, bool) {
 	return uint(v), true
 }
 
+func (h *InboundHandler) ListTypes(c *gin.Context) {
+	c.JSON(http.StatusOK, h.ctrl.Types())
+}
+
 func (h *InboundHandler) ListInbounds(c *gin.Context) {
-	ins, err := h.ctrl.ListInbounds()
+	views, err := h.ctrl.ListInboundViews()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, ins)
+	c.JSON(http.StatusOK, views)
 }
 
 type createInboundBody struct {
-	Tag       string `json:"tag" binding:"required"`
-	Port      uint16 `json:"port" binding:"required"`
-	Handshake string `json:"handshake" binding:"required"`
+	Type   string         `json:"type" binding:"required"`
+	Tag    string         `json:"tag" binding:"required"`
+	Port   uint16         `json:"port" binding:"required"`
+	Params map[string]any `json:"params"`
 }
 
 func (h *InboundHandler) CreateInbound(c *gin.Context) {
 	var b createInboundBody
 	if err := c.ShouldBindJSON(&b); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "tag/port/handshake required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "type/tag/port required"})
 		return
 	}
-	in, err := h.ctrl.CreateInbound(b.Tag, b.Port, b.Handshake)
+	in, err := h.ctrl.CreateInbound(b.Type, b.Tag, b.Port, b.Params)
 	if err != nil {
 		switch {
-		case errors.Is(err, inbound.ErrInvalidTag):
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid tag"})
-		case errors.Is(err, inbound.ErrTagExists):
-			c.JSON(http.StatusConflict, gin.H{"error": "tag exists"})
-		case errors.Is(err, inbound.ErrPortInUse):
-			c.JSON(http.StatusConflict, gin.H{"error": "port in use"})
+		case errors.Is(err, inbound.ErrUnknownType), errors.Is(err, inbound.ErrInvalidTag):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		case errors.Is(err, inbound.ErrTagExists), errors.Is(err, inbound.ErrPortInUse):
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}
@@ -151,7 +155,7 @@ func (h *InboundHandler) Apply(c *gin.Context) {
 	}
 	st, err := h.restarter.Restart()
 	if err != nil {
-		writeStartError(c, err) // from singbox.go (same package)
+		writeStartError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, st)

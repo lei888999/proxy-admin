@@ -14,27 +14,30 @@ import (
 )
 
 type fakeInbCtrl struct {
-	inbounds   []models.Inbound
+	views      []inbound.InboundView
+	types      []inbound.TypeInfo
 	createErr  error
 	deleteErr  error
 	users      []models.User
 	createUErr error
 	deleteUErr error
 	regenErr   error
+	lastType   string
 	lastTag    string
 	lastUName  string
 }
 
-func (f *fakeInbCtrl) ListInbounds() ([]models.Inbound, error) { return f.inbounds, nil }
-func (f *fakeInbCtrl) CreateInbound(tag string, port uint16, hs string) (models.Inbound, error) {
-	f.lastTag = tag
-	return models.Inbound{ID: 1, Tag: tag, Port: port}, f.createErr
+func (f *fakeInbCtrl) ListInboundViews() ([]inbound.InboundView, error) { return f.views, nil }
+func (f *fakeInbCtrl) Types() []inbound.TypeInfo                        { return f.types }
+func (f *fakeInbCtrl) CreateInbound(typ, tag string, port uint16, params map[string]any) (models.Inbound, error) {
+	f.lastType, f.lastTag = typ, tag
+	return models.Inbound{ID: 1, Tag: tag, Type: typ, Port: port}, f.createErr
 }
 func (f *fakeInbCtrl) DeleteInbound(id uint) error              { return f.deleteErr }
 func (f *fakeInbCtrl) ListUsers(id uint) ([]models.User, error) { return f.users, nil }
 func (f *fakeInbCtrl) CreateUser(id uint, name string) (models.User, error) {
 	f.lastUName = name
-	return models.User{ID: 1, Name: name, UUID: "u"}, f.createUErr
+	return models.User{ID: 1, Name: name, Credential: "c"}, f.createUErr
 }
 func (f *fakeInbCtrl) DeleteUser(id uint) error { return f.deleteUErr }
 func (f *fakeInbCtrl) Regenerate() error        { return f.regenErr }
@@ -50,10 +53,10 @@ func inbRouter(ctrl InboundController, r Restarter) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	h := NewInboundHandler(ctrl, r)
 	e := gin.New()
+	e.GET("/api/inbound-types", h.ListTypes)
 	e.GET("/api/inbounds", h.ListInbounds)
 	e.POST("/api/inbounds", h.CreateInbound)
 	e.DELETE("/api/inbounds/:id", h.DeleteInbound)
-	e.GET("/api/inbounds/:id/users", h.ListUsers)
 	e.POST("/api/inbounds/:id/users", h.CreateUser)
 	e.DELETE("/api/users/:id", h.DeleteUser)
 	e.POST("/api/singbox/apply", h.Apply)
@@ -68,44 +71,31 @@ func inbReq(e *gin.Engine, m, p, body string) *httptest.ResponseRecorder {
 	return w
 }
 
+func TestListTypes(t *testing.T) {
+	c := &fakeInbCtrl{types: []inbound.TypeInfo{{Type: "hysteria2", Label: "Hysteria2", Network: "udp", DefaultPort: 443}}}
+	w := inbReq(inbRouter(c, &fakeRestarter{}), http.MethodGet, "/api/inbound-types", "")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "hysteria2") {
+		t.Fatalf("code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestCreateInboundOK(t *testing.T) {
 	c := &fakeInbCtrl{}
-	w := inbReq(inbRouter(c, &fakeRestarter{}), http.MethodPost, "/api/inbounds", `{"tag":"v1","port":443,"handshake":"www.microsoft.com"}`)
-	if w.Code != 200 || c.lastTag != "v1" {
-		t.Fatalf("code=%d tag=%q body=%s", w.Code, c.lastTag, w.Body.String())
+	w := inbReq(inbRouter(c, &fakeRestarter{}), http.MethodPost, "/api/inbounds", `{"type":"hysteria2","tag":"h1","port":443,"params":{"upMbps":50}}`)
+	if w.Code != 200 || c.lastType != "hysteria2" || c.lastTag != "h1" {
+		t.Fatalf("code=%d type=%q tag=%q", w.Code, c.lastType, c.lastTag)
 	}
 }
 
-func TestCreateInboundDuplicate(t *testing.T) {
-	w := inbReq(inbRouter(&fakeInbCtrl{createErr: inbound.ErrTagExists}, &fakeRestarter{}), http.MethodPost, "/api/inbounds", `{"tag":"v1","port":443,"handshake":"h"}`)
-	if w.Code != 409 {
-		t.Fatalf("code=%d", w.Code)
-	}
-}
-
-func TestCreateInboundBadBody(t *testing.T) {
-	w := inbReq(inbRouter(&fakeInbCtrl{}, &fakeRestarter{}), http.MethodPost, "/api/inbounds", `{"tag":"","port":0}`)
+func TestCreateInboundUnknownType(t *testing.T) {
+	w := inbReq(inbRouter(&fakeInbCtrl{createErr: inbound.ErrUnknownType}, &fakeRestarter{}), http.MethodPost, "/api/inbounds", `{"type":"x","tag":"t","port":1}`)
 	if w.Code != 400 {
 		t.Fatalf("code=%d", w.Code)
 	}
 }
 
-func TestDeleteInboundNotFoundHandler(t *testing.T) {
-	w := inbReq(inbRouter(&fakeInbCtrl{deleteErr: inbound.ErrNotFound}, &fakeRestarter{}), http.MethodDelete, "/api/inbounds/9", "")
-	if w.Code != 404 {
-		t.Fatalf("code=%d", w.Code)
-	}
-}
-
-func TestCreateInboundInvalidTagHandler(t *testing.T) {
-	w := inbReq(inbRouter(&fakeInbCtrl{createErr: inbound.ErrInvalidTag}, &fakeRestarter{}), http.MethodPost, "/api/inbounds", `{"tag":"x","port":1,"handshake":"h"}`)
-	if w.Code != 400 {
-		t.Fatalf("code=%d", w.Code)
-	}
-}
-
-func TestCreateInboundPortInUseHandler(t *testing.T) {
-	w := inbReq(inbRouter(&fakeInbCtrl{createErr: inbound.ErrPortInUse}, &fakeRestarter{}), http.MethodPost, "/api/inbounds", `{"tag":"x","port":1,"handshake":"h"}`)
+func TestCreateInboundPortInUse(t *testing.T) {
+	w := inbReq(inbRouter(&fakeInbCtrl{createErr: inbound.ErrPortInUse}, &fakeRestarter{}), http.MethodPost, "/api/inbounds", `{"type":"vless-reality","tag":"t","port":443}`)
 	if w.Code != 409 {
 		t.Fatalf("code=%d", w.Code)
 	}
