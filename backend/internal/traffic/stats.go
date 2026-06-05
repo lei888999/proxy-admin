@@ -59,14 +59,21 @@ func decodeQueryStatsResponse(b []byte) ([]Stat, error) {
 		}
 		l, ni := decodeVarint(b, i)
 		i = ni
+		if l > uint64(len(b)-i) {
+			return nil, fmt.Errorf("truncated stat: need %d bytes, have %d", l, len(b)-i)
+		}
 		inner := b[i : i+int(l)]
 		i += int(l)
-		stats = append(stats, decodeStat(inner))
+		st, err := decodeStat(inner)
+		if err != nil {
+			return nil, err
+		}
+		stats = append(stats, st)
 	}
 	return stats, nil
 }
 
-func decodeStat(b []byte) Stat {
+func decodeStat(b []byte) (Stat, error) {
 	var s Stat
 	i := 0
 	for i < len(b) {
@@ -76,6 +83,9 @@ func decodeStat(b []byte) Stat {
 		case 0x0a: // name, length-delimited
 			l, ni := decodeVarint(b, i)
 			i = ni
+			if l > uint64(len(b)-i) {
+				return s, fmt.Errorf("truncated name: need %d bytes, have %d", l, len(b)-i)
+			}
 			s.Name = string(b[i : i+int(l)])
 			i += int(l)
 		case 0x10: // value, varint
@@ -83,10 +93,10 @@ func decodeStat(b []byte) Stat {
 			i = ni
 			s.Value = int64(v)
 		default:
-			return s
+			return s, nil
 		}
 	}
-	return s
+	return s, nil
 }
 
 // statsCodec marshals our two hand-rolled message types for grpc.ForceCodec.

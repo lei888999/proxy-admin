@@ -25,3 +25,17 @@ func TestQueryStatsResponseDecode(t *testing.T) {
 		t.Fatalf("stats=%+v", stats)
 	}
 }
+
+func TestQueryStatsResponseDecodeMalformed(t *testing.T) {
+	cases := map[string][]byte{
+		"outer length overflow": {0x0a, 0xff, 0x01, 0x02},       // claims 255 bytes, has 1
+		"inner name overflow":   {0x0a, 0x03, 0x0a, 0xff, 0x01}, // inner name claims 255, has 0
+	}
+	for name, in := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := decodeQueryStatsResponse(in); err == nil {
+				t.Fatal("expected an error on malformed input, got nil (and must not panic)")
+			}
+		})
+	}
+}
