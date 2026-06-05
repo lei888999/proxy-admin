@@ -38,9 +38,10 @@ describe("AppShell", () => {
     expect(screen.getByText("content")).toBeInTheDocument();
   });
 
-  it("logout button calls logout and redirects", async () => {
+  it("account menu logs out and redirects", async () => {
     render(<AppShell><div /></AppShell>);
-    await userEvent.click(screen.getByRole("button", { name: /退出登录/ }));
+    await userEvent.click(screen.getByRole("button", { name: /账户菜单/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /退出登录/ }));
     expect(logoutMock).toHaveBeenCalled();
     expect(pushMock).toHaveBeenCalledWith("/login");
   });

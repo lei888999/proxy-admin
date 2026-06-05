@@ -45,8 +45,8 @@ func TestAPIConfigIdempotent(t *testing.T) {
 	if c1.ClashSecret != c2.ClashSecret {
 		t.Fatalf("secret changed between calls: %s -> %s", c1.ClashSecret, c2.ClashSecret)
 	}
-	if c1.ClashAddr != c2.ClashAddr || c1.V2RayAddr != c2.V2RayAddr {
-		t.Fatal("api addresses changed between calls")
+	if c1.ClashAddr != c2.ClashAddr {
+		t.Fatal("api address changed between calls")
 	}
 }
 

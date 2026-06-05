@@ -5,13 +5,22 @@ import {
   listUsers, listInbounds, createUser, updateUser, resetUserCreds, deleteUser, resetUserTraffic,
   User, Inbound,
 } from "@/lib/api";
-import { formatBytes } from "@/lib/utils";
+import { formatBytes, copyText } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import { Copy, Pencil, KeyRound, RotateCcw, Trash2 } from "lucide-react";
 
 type Form = { id?: number; name: string; inboundIds: number[] };
 
@@ -73,7 +82,7 @@ export default function UsersPage() {
   }
 
   function copySub(token: string) {
-    navigator.clipboard.writeText(`${window.location.origin}/sub/${token}`);
+    copyText(`${window.location.origin}/sub/${token}`);
   }
 
   return (
@@ -85,31 +94,56 @@ export default function UsersPage() {
         </Button>
       </div>
 
-      <Card className="rounded-lg">
-        <CardContent className="pt-4">
-          <div className="divide-y divide-border">
-            <div className="grid grid-cols-[1fr_1.6fr_1.6fr_1.4fr_1.4fr_auto] gap-4 py-2 font-mono text-xs text-muted-foreground uppercase">
-              <span>名称</span><span>UUID</span><span>密码</span><span>入站</span><span>流量</span><span></span>
-            </div>
+      <Card className="overflow-hidden rounded-lg p-0">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>名称</TableHead>
+              <TableHead>UUID</TableHead>
+              <TableHead>密码</TableHead>
+              <TableHead>入站</TableHead>
+              <TableHead>流量</TableHead>
+              <TableHead className="text-right">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {users.map((u) => (
-              <div key={u.id} className="grid grid-cols-[1fr_1.6fr_1.6fr_1.4fr_1.4fr_auto] items-center gap-4 py-3 text-sm">
-                <span>{u.name}</span>
-                <span className="truncate font-mono text-xs">{u.uuid}</span>
-                <span className="truncate font-mono text-xs">{u.password}</span>
-                <span className="truncate text-xs text-muted-foreground">{u.inboundTags.join(", ") || "—"}</span>
-                <span className="text-xs text-muted-foreground">↑<span>{formatBytes(u.upBytes)}</span> ↓<span>{formatBytes(u.downBytes)}</span></span>
-                <span className="flex gap-2">
-                  <Button variant="outline" className="rounded-full" onClick={() => copySub(u.subToken)}>订阅</Button>
-                  <Button variant="outline" className="rounded-full" onClick={() => { setError(""); setForm({ id: u.id, name: u.name, inboundIds: u.inboundIds }); }}>编辑</Button>
-                  <Button variant="outline" className="rounded-full" onClick={() => onReset(u.id)}>重置凭证</Button>
-                  <Button variant="outline" className="rounded-full" onClick={() => setConfirmResetTraffic(u)}>重置流量</Button>
-                  <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(u)}>删除</Button>
-                </span>
-              </div>
+              <TableRow key={u.id}>
+                <TableCell className="font-medium">{u.name}</TableCell>
+                <TableCell className="max-w-[12rem] truncate font-mono text-xs text-muted-foreground">{u.uuid}</TableCell>
+                <TableCell className="max-w-[10rem] truncate font-mono text-xs text-muted-foreground">{u.password}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{u.inboundTags.join(", ") || "—"}</TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
+                  ↑{formatBytes(u.upBytes)} ↓{formatBytes(u.downBytes)}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center justify-end gap-0.5">
+                    <Button variant="ghost" size="icon" aria-label="订阅" title="复制订阅链接" onClick={() => copySub(u.subToken)}>
+                      <Copy />
+                    </Button>
+                    <Button variant="ghost" size="icon" aria-label="编辑" title="编辑" onClick={() => { setError(""); setForm({ id: u.id, name: u.name, inboundIds: u.inboundIds }); }}>
+                      <Pencil />
+                    </Button>
+                    <Button variant="ghost" size="icon" aria-label="重置凭证" title="重置凭证（轮换 UUID/密码/订阅 token）" onClick={() => onReset(u.id)}>
+                      <KeyRound />
+                    </Button>
+                    <Button variant="ghost" size="icon" aria-label="重置流量" title="重置累计流量" onClick={() => setConfirmResetTraffic(u)}>
+                      <RotateCcw />
+                    </Button>
+                    <Button variant="ghost" size="icon" aria-label="删除" title="删除" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setConfirmDelete(u)}>
+                      <Trash2 />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
             ))}
-            {users.length === 0 && <p className="py-3 text-sm text-muted-foreground">暂无用户。</p>}
-          </div>
-        </CardContent>
+            {users.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">暂无用户。</TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </Card>
 
       <Modal open={form !== null} onClose={() => setForm(null)} title={form?.id ? "编辑用户" : "新建用户"}>

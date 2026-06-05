@@ -5,6 +5,16 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { getStatus, logout, UnauthorizedError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { User, LogOut } from "lucide-react";
 
 const NAV_GROUPS: { heading: string; items: { href: string; label: string }[] }[] = [
   {
@@ -71,14 +81,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-6">
-          <span className="text-sm text-muted-foreground">sing-box 管理面板</span>
-          <Button variant="outline" className="rounded-full" onClick={onLogout}>
-            退出登录
-          </Button>
+        <header className="flex h-14 shrink-0 items-center justify-end border-b border-border px-6">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="icon" className="rounded-full" aria-label="账户菜单">
+                  <User />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>管理员</DropdownMenuLabel>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={onLogout}>
+                <LogOut />
+                退出登录
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </header>
-        <main className="min-w-0 flex-1 overflow-y-auto px-6 py-8">
-          <div className="mx-auto max-w-4xl">{children}</div>
+        <main className="min-w-0 flex-1 overflow-y-auto px-8 py-8">
+          <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
       </div>
     </div>

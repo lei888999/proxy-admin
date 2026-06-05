@@ -87,7 +87,7 @@ describe("UsersPage", () => {
     ]);
     render(<UsersPage />);
     await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
-    expect(screen.getByText("1.0 KB")).toBeInTheDocument();
-    expect(screen.getByText("1.0 MB")).toBeInTheDocument();
+    expect(screen.getByText(/1\.0 KB/)).toBeInTheDocument();
+    expect(screen.getByText(/1\.0 MB/)).toBeInTheDocument();
   });
 });

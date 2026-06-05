@@ -44,12 +44,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("api config: %v", err)
 	}
-	if statsClient, err := traffic.NewStatsClient(exp.V2RayAddr); err != nil {
-		log.Printf("traffic stats disabled: %v", err)
-	} else {
-		poller := traffic.NewPoller(statsClient, inbSvc, 10*time.Second)
-		go poller.Run(context.Background())
-	}
+	clashClient := traffic.NewClashClient(exp.ClashAddr, exp.ClashSecret)
+	poller := traffic.NewPoller(clashClient, inbSvc, 10*time.Second)
+	go poller.Run(context.Background())
 
 	inbHandler := handlers.NewInboundHandler(inbSvc, sbSvc)
 	userHandler := handlers.NewUserHandler(inbSvc)
