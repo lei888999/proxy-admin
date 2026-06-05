@@ -14,7 +14,7 @@ source "$ENV_FILE"
 : "${DEPLOY_HOST:?set DEPLOY_HOST in .deploy.env (e.g. root@1.2.3.4)}"
 : "${DEPLOY_PATH:?set DEPLOY_PATH in .deploy.env (e.g. /opt/sing-box-admin)}"
 SSH_PORT="${DEPLOY_PORT:-22}"
-SINGBOX_VERSION="${SINGBOX_VERSION:-1.14.0}"
+SINGBOX_VERSION="${SINGBOX_VERSION:-1.13.13}"
 
 echo "==> detecting VPS architecture"
 RAW_ARCH="$(ssh -p "$SSH_PORT" "$DEPLOY_HOST" 'uname -m')"
@@ -38,19 +38,28 @@ BIN="$(mktemp -t sing-box-admin.XXXXXX)"
 ( cd "$ROOT_DIR/backend" && CGO_ENABLED=0 GOOS=linux GOARCH="$GOARCH" \
     go build -trimpath -ldflags="-s -w" -o "$BIN" ./cmd/server )
 
-echo "==> fetching sing-box ${SINGBOX_VERSION} (linux/${GOARCH})"
-SB_TMP="$(mktemp -d)"
-curl -fsSL "https://github.com/SagerNet/sing-box/releases/download/v${SINGBOX_VERSION}/sing-box-${SINGBOX_VERSION}-linux-${GOARCH}.tar.gz" \
-  | tar -xz -C "$SB_TMP"
-
-echo "==> uploading binary + sing-box to $DEPLOY_HOST:$DEPLOY_PATH"
+echo "==> uploading panel binary to $DEPLOY_HOST:$DEPLOY_PATH"
 ssh -p "$SSH_PORT" "$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH' '$DEPLOY_PATH/data' '$DEPLOY_PATH/data/singbox/bin'"
 scp -P "$SSH_PORT" "$BIN" "$DEPLOY_HOST:$DEPLOY_PATH/sing-box-admin.new"
-scp -P "$SSH_PORT" "$SB_TMP/sing-box-${SINGBOX_VERSION}-linux-${GOARCH}/sing-box" \
-  "$DEPLOY_HOST:$DEPLOY_PATH/data/singbox/bin/sing-box"
-ssh -p "$SSH_PORT" "$DEPLOY_HOST" "chmod +x '$DEPLOY_PATH/data/singbox/bin/sing-box'"
 rm -f "$BIN"
-rm -rf "$SB_TMP"
+
+# sing-box is downloaded ON the VPS (not fetched locally and pushed). Idempotent:
+# only downloads when the binary is missing. To upgrade, delete it on the server first.
+echo "==> ensuring sing-box ${SINGBOX_VERSION} on the server (downloads on the VPS if missing)"
+ssh -p "$SSH_PORT" "$DEPLOY_HOST" "bash -se" <<EOF
+set -euo pipefail
+SB_BIN='$DEPLOY_PATH/data/singbox/bin/sing-box'
+if [ -x "\$SB_BIN" ]; then
+  echo "    sing-box already present, skipping download"
+else
+  tmp=\$(mktemp -d)
+  curl -fsSL 'https://github.com/SagerNet/sing-box/releases/download/v${SINGBOX_VERSION}/sing-box-${SINGBOX_VERSION}-linux-${GOARCH}.tar.gz' | tar -xz -C "\$tmp"
+  mv "\$tmp/sing-box-${SINGBOX_VERSION}-linux-${GOARCH}/sing-box" "\$SB_BIN"
+  chmod +x "\$SB_BIN"
+  rm -rf "\$tmp"
+  echo "    sing-box ${SINGBOX_VERSION} downloaded on server"
+fi
+EOF
 
 echo "==> installing/refreshing systemd unit and restarting (needs root on VPS)"
 ssh -p "$SSH_PORT" "$DEPLOY_HOST" "bash -se" <<EOF

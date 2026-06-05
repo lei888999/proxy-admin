@@ -4,7 +4,7 @@ services:
       context: .
       args:
         # Override to pin a different sing-box release.
-        SING_BOX_IMAGE: ${SING_BOX_IMAGE:-ghcr.io/sagernet/sing-box:v1.14.0}
+        SING_BOX_IMAGE: ${SING_BOX_IMAGE:-ghcr.io/sagernet/sing-box:v1.13.13}
     image: sing-box-admin:latest
     container_name: sing-box-admin
     restart: unless-stopped
