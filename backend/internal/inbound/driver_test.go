@@ -122,6 +122,9 @@ func TestHy2ClashProxy(t *testing.T) {
 	if p["skip-cert-verify"] != true {
 		t.Fatalf("expected skip-cert-verify true: %v", p)
 	}
+	if strings.Contains(toJSON(p), "PEM") || strings.Contains(toJSON(p), "BEGIN") {
+		t.Fatal("clash proxy leaked TLS cert or key material")
+	}
 }
 
 func TestVlessUpdateAndReset(t *testing.T) {
