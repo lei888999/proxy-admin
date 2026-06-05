@@ -18,3 +18,6 @@ backend/internal/web/dist/*
 
 # misc
 .DS_Store
+
+# sing-box runtime dir (default SINGBOX_DIR when run from backend/)
+backend/singbox/
