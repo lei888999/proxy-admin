@@ -22,10 +22,11 @@ beforeEach(() => {
 });
 
 describe("AppShell", () => {
-  it("renders nav items 概览 入站 配置", () => {
-    render(<AppShell><div>内容</div></AppShell>);
+  it("renders nav items 概览 入站 用户 配置", () => {
+    render(<AppShell><div>x</div></AppShell>);
     expect(screen.getByRole("link", { name: /概览/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /入站/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /用户/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /配置/ })).toBeInTheDocument();
   });
 

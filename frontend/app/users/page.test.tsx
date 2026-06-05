@@ -1,0 +1,55 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import UsersPage from "./page";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/users",
+}));
+
+const listUsersMock = vi.fn();
+const listInboundsMock = vi.fn();
+const createUserMock = vi.fn();
+vi.mock("@/lib/api", () => ({
+  listUsers: () => listUsersMock(),
+  listInbounds: () => listInboundsMock(),
+  createUser: (...a: unknown[]) => createUserMock(...a),
+  updateUser: vi.fn(),
+  resetUserCreds: vi.fn(),
+  deleteUser: vi.fn(),
+  getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true }),
+  logout: vi.fn(),
+  UnauthorizedError: class extends Error {},
+}));
+
+beforeEach(() => {
+  listUsersMock.mockReset().mockResolvedValue([]);
+  listInboundsMock.mockReset().mockResolvedValue([
+    { id: 1, type: "vless-reality", tag: "v1", port: 8443, network: "tcp", publicInfo: {} },
+  ]);
+  createUserMock.mockReset().mockResolvedValue({ id: 1 });
+});
+
+describe("UsersPage", () => {
+  it("列表显示用户的 UUID 与明文密码", async () => {
+    listUsersMock.mockResolvedValue([
+      { id: 1, name: "alice", uuid: "the-uuid", password: "the-pass", inboundIds: [1], inboundTags: ["v1"] },
+    ]);
+    render(<UsersPage />);
+    await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
+    expect(screen.getByText("the-uuid")).toBeInTheDocument();
+    expect(screen.getByText("the-pass")).toBeInTheDocument();
+  });
+
+  it("新建用户 modal 勾选入站并提交", async () => {
+    render(<UsersPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /新建用户/ }));
+    await userEvent.type(screen.getByLabelText(/名称/), "bob");
+    await userEvent.click(screen.getByLabelText(/v1/));
+    await userEvent.click(screen.getByRole("button", { name: /创建/ }));
+    await waitFor(() => expect(createUserMock).toHaveBeenCalled());
+    expect(createUserMock.mock.calls[0][0]).toBe("bob");
+    expect(createUserMock.mock.calls[0][1]).toEqual([1]);
+  });
+});
