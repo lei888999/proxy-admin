@@ -12,7 +12,7 @@ import (
 
 func TestUserSubscription(t *testing.T) {
 	db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	db.AutoMigrate(&models.Inbound{}, &models.User{})
+	db.AutoMigrate(&models.Inbound{}, &models.User{}, &models.Meta{})
 	s := NewService(db, &fakeWriter{})
 	if _, err := s.CreateInbound("vless-reality", "v1", 8443, nil); err != nil {
 		t.Fatalf("inbound: %v", err)

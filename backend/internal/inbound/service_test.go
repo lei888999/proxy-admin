@@ -22,7 +22,7 @@ func newTestService(t *testing.T) (*Service, *fakeWriter) {
 	if err != nil {
 		t.Fatalf("db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.Inbound{}, &models.User{}); err != nil {
+	if err := db.AutoMigrate(&models.Inbound{}, &models.User{}, &models.Meta{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	w := &fakeWriter{}

@@ -32,6 +32,14 @@ type TypeInfo struct {
 	DefaultPort uint16 `json:"defaultPort"`
 }
 
+// ExperimentalConfig holds the sing-box experimental API endpoints the panel
+// uses for traffic stats (clash_api = live, v2ray_api = cumulative).
+type ExperimentalConfig struct {
+	ClashAddr   string
+	ClashSecret string
+	V2RayAddr   string
+}
+
 var registry = map[string]Driver{}
 
 func register(d Driver) { registry[d.Type()] = d }
