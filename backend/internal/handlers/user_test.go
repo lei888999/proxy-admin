@@ -30,7 +30,8 @@ func (f *fakeUserCtrl) UpdateUser(id uint, name string, ids []uint) (models.User
 func (f *fakeUserCtrl) ResetUserCreds(id uint) (models.User, error) {
 	return models.User{ID: id, UUID: "new"}, nil
 }
-func (f *fakeUserCtrl) DeleteUser(id uint) error { return nil }
+func (f *fakeUserCtrl) DeleteUser(id uint) error       { return nil }
+func (f *fakeUserCtrl) ResetUserTraffic(id uint) error { return nil }
 
 func userRouter(ctrl UserController) *gin.Engine {
 	gin.SetMode(gin.TestMode)

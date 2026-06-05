@@ -16,6 +16,7 @@ type UserController interface {
 	UpdateUser(id uint, name string, inboundIDs []uint) (models.User, error)
 	ResetUserCreds(id uint) (models.User, error)
 	DeleteUser(id uint) error
+	ResetUserTraffic(id uint) error
 }
 
 type UserHandler struct{ ctrl UserController }
@@ -92,6 +93,19 @@ func (h *UserHandler) Reset(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, u)
+}
+
+func (h *UserHandler) ResetTraffic(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad id"})
+		return
+	}
+	if err := h.ctrl.ResetUserTraffic(id); err != nil {
+		writeUserErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 func (h *UserHandler) Delete(c *gin.Context) {
