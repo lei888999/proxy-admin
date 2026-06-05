@@ -7,7 +7,6 @@ import (
 	"singbox-admin/internal/models"
 )
 
-// Generate builds a complete sing-box config from inbounds via the driver registry.
 func Generate(inbounds []models.Inbound) (string, error) {
 	ins := []map[string]any{}
 	for _, in := range inbounds {
@@ -15,9 +14,14 @@ func Generate(inbounds []models.Inbound) (string, error) {
 		if !ok {
 			return "", fmt.Errorf("%w: %s", ErrUnknownType, in.Type)
 		}
+		kind := d.CredentialKind()
 		creds := make([]Cred, 0, len(in.Users))
 		for _, u := range in.Users {
-			creds = append(creds, Cred{Name: u.Name, Credential: u.Credential})
+			c := u.UUID
+			if kind == "password" {
+				c = u.Password
+			}
+			creds = append(creds, Cred{Name: u.Name, Credential: c})
 		}
 		piece, err := d.BuildInbound(in.Tag, in.Port, in.Settings, creds)
 		if err != nil {
