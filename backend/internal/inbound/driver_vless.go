@@ -74,3 +74,35 @@ func (vlessReality) PublicInfo(settings string) (map[string]any, error) {
 		"serverName": s.ServerName, "flow": s.Flow,
 	}, nil
 }
+
+func (vlessReality) CredentialKind() string { return "uuid" }
+
+func (vlessReality) UpdateSettings(existing string, params map[string]any) (string, error) {
+	var s vlessSettings
+	if err := json.Unmarshal([]byte(existing), &s); err != nil {
+		return "", err
+	}
+	if v, ok := params["handshake"].(string); ok && v != "" {
+		s.Handshake = v
+		s.ServerName = v
+	}
+	if v, ok := toInt(params["handshakePort"]); ok && v > 0 {
+		s.HandshakePort = uint16(v)
+	}
+	b, err := json.Marshal(s)
+	return string(b), err
+}
+
+func (d vlessReality) ResetSecrets(existing string) (string, error) {
+	var s vlessSettings
+	if err := json.Unmarshal([]byte(existing), &s); err != nil {
+		return "", err
+	}
+	priv, pub, err := d.kg.RealityKeypair()
+	if err != nil {
+		return "", err
+	}
+	s.RealityPrivateKey, s.RealityPublicKey, s.ShortID = priv, pub, d.kg.ShortID()
+	b, err := json.Marshal(s)
+	return string(b), err
+}
