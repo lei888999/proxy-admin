@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getStatus, startSingbox, stopSingbox, applySingbox, UnauthorizedError, SingboxStatus } from "@/lib/api";
+import { getStatus, startSingbox, stopSingbox, applySingbox, getLiveTraffic, LiveTraffic, UnauthorizedError, SingboxStatus } from "@/lib/api";
+import { formatBytes } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +13,7 @@ export default function DashboardPage() {
   const [status, setStatus] = useState<SingboxStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [live, setLive] = useState<LiveTraffic>({ up: 0, down: 0 });
 
   const refresh = useCallback(() => {
     getStatus()
@@ -22,6 +24,16 @@ export default function DashboardPage() {
   }, [router]);
 
   useEffect(refresh, [refresh]);
+  useEffect(() => {
+    let active = true;
+    const tick = () => getLiveTraffic().then((l) => active && setLive(l)).catch(() => {});
+    tick();
+    const id = setInterval(tick, 3000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, []);
 
   async function run(action: () => Promise<SingboxStatus>) {
     setBusy(true);
@@ -99,6 +111,26 @@ export default function DashboardPage() {
               </div>
             </>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6 rounded-lg">
+        <CardHeader>
+          <CardTitle className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
+            实时吞吐
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-10">
+            <div>
+              <p className="font-mono text-xs tracking-wider text-muted-foreground uppercase">上行</p>
+              <p className="text-2xl font-normal">{formatBytes(live.up)}/s</p>
+            </div>
+            <div>
+              <p className="font-mono text-xs tracking-wider text-muted-foreground uppercase">下行</p>
+              <p className="text-2xl font-normal">{formatBytes(live.down)}/s</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </AppShell>

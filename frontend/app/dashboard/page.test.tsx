@@ -13,11 +13,13 @@ const getStatusMock = vi.fn();
 const startMock = vi.fn();
 const stopMock = vi.fn();
 const applyMock = vi.fn();
+const getLiveTrafficMock = vi.fn();
 vi.mock("@/lib/api", () => ({
   getStatus: () => getStatusMock(),
   startSingbox: () => startMock(),
   stopSingbox: () => stopMock(),
   applySingbox: () => applyMock(),
+  getLiveTraffic: () => getLiveTrafficMock(),
   logout: vi.fn(),
   UnauthorizedError: class extends Error {},
 }));
@@ -28,6 +30,7 @@ beforeEach(() => {
   startMock.mockReset();
   stopMock.mockReset();
   applyMock.mockReset();
+  getLiveTrafficMock.mockReset().mockResolvedValue({ up: 1024, down: 2048 });
 });
 
 describe("DashboardPage", () => {
@@ -54,5 +57,12 @@ describe("DashboardPage", () => {
     const btn = await screen.findByRole("button", { name: /应用并重启/ });
     await userEvent.click(btn);
     expect(applyMock).toHaveBeenCalled();
+  });
+
+  it("显示实时吞吐", async () => {
+    getStatusMock.mockResolvedValue({ installed: true, version: "1.13.13", running: true, hasConfig: true });
+    render(<DashboardPage />);
+    await waitFor(() => expect(screen.getByText(/实时吞吐/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/1\.0 KB\/s/)).toBeInTheDocument());
   });
 });

@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  listUsers, listInbounds, createUser, updateUser, resetUserCreds, deleteUser,
+  listUsers, listInbounds, createUser, updateUser, resetUserCreds, deleteUser, resetUserTraffic,
   User, Inbound,
 } from "@/lib/api";
+import { formatBytes } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ export default function UsersPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<User | null>(null);
+  const [confirmResetTraffic, setConfirmResetTraffic] = useState<User | null>(null);
 
   const refresh = useCallback(() => {
     listUsers().then(setUsers).catch(() => setError("加载用户失败"));
@@ -63,6 +65,12 @@ export default function UsersPage() {
     setConfirmDelete(null);
     refresh();
   }
+  async function doResetTraffic() {
+    if (!confirmResetTraffic) return;
+    await resetUserTraffic(confirmResetTraffic.id);
+    setConfirmResetTraffic(null);
+    refresh();
+  }
 
   function copySub(token: string) {
     navigator.clipboard.writeText(`${window.location.origin}/sub/${token}`);
@@ -80,19 +88,21 @@ export default function UsersPage() {
       <Card className="rounded-lg">
         <CardContent className="pt-4">
           <div className="divide-y divide-border">
-            <div className="grid grid-cols-[1fr_2fr_2fr_2fr_auto] gap-4 py-2 font-mono text-xs text-muted-foreground uppercase">
-              <span>名称</span><span>UUID</span><span>密码</span><span>入站</span><span></span>
+            <div className="grid grid-cols-[1fr_1.6fr_1.6fr_1.4fr_1.4fr_auto] gap-4 py-2 font-mono text-xs text-muted-foreground uppercase">
+              <span>名称</span><span>UUID</span><span>密码</span><span>入站</span><span>流量</span><span></span>
             </div>
             {users.map((u) => (
-              <div key={u.id} className="grid grid-cols-[1fr_2fr_2fr_2fr_auto] items-center gap-4 py-3 text-sm">
+              <div key={u.id} className="grid grid-cols-[1fr_1.6fr_1.6fr_1.4fr_1.4fr_auto] items-center gap-4 py-3 text-sm">
                 <span>{u.name}</span>
                 <span className="truncate font-mono text-xs">{u.uuid}</span>
                 <span className="truncate font-mono text-xs">{u.password}</span>
                 <span className="truncate text-xs text-muted-foreground">{u.inboundTags.join(", ") || "—"}</span>
+                <span className="text-xs text-muted-foreground">↑<span>{formatBytes(u.upBytes)}</span> ↓<span>{formatBytes(u.downBytes)}</span></span>
                 <span className="flex gap-2">
                   <Button variant="outline" className="rounded-full" onClick={() => copySub(u.subToken)}>订阅</Button>
                   <Button variant="outline" className="rounded-full" onClick={() => { setError(""); setForm({ id: u.id, name: u.name, inboundIds: u.inboundIds }); }}>编辑</Button>
                   <Button variant="outline" className="rounded-full" onClick={() => onReset(u.id)}>重置凭证</Button>
+                  <Button variant="outline" className="rounded-full" onClick={() => setConfirmResetTraffic(u)}>重置流量</Button>
                   <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(u)}>删除</Button>
                 </span>
               </div>
@@ -142,6 +152,16 @@ export default function UsersPage() {
         <div className="flex justify-end gap-3">
           <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(null)}>取消</Button>
           <Button className="rounded-full" onClick={doDelete}>确认删除</Button>
+        </div>
+      </Modal>
+
+      <Modal open={confirmResetTraffic !== null} onClose={() => setConfirmResetTraffic(null)} title="重置流量">
+        <p className="mb-4 text-sm text-muted-foreground">
+          确定清零用户 <span className="font-mono">{confirmResetTraffic?.name}</span> 的累计流量？
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" className="rounded-full" onClick={() => setConfirmResetTraffic(null)}>取消</Button>
+          <Button className="rounded-full" onClick={doResetTraffic}>确认重置</Button>
         </div>
       </Modal>
     </AppShell>
