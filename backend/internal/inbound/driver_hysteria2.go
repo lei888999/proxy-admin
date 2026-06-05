@@ -1,10 +1,6 @@
 package inbound
 
-import (
-	"crypto/rand"
-	"encoding/base64"
-	"encoding/json"
-)
+import "encoding/json"
 
 type hy2Settings struct {
 	ServerName string `json:"serverName"`
@@ -41,12 +37,6 @@ func (hysteria2) BuildSettings(params map[string]any) (string, error) {
 	}
 	b, err := json.Marshal(s)
 	return string(b), err
-}
-
-func (hysteria2) NewCredential() string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 func (hysteria2) BuildInbound(tag string, port uint16, settings string, users []Cred) (map[string]any, error) {

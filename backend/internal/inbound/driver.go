@@ -17,7 +17,6 @@ type Driver interface {
 	Network() string
 	DefaultPort() uint16
 	BuildSettings(params map[string]any) (string, error) // generate secrets + apply params/defaults -> settings JSON
-	NewCredential() string
 	BuildInbound(tag string, port uint16, settings string, users []Cred) (map[string]any, error)
 	PublicInfo(settings string) (map[string]any, error)
 	CredentialKind() string                                                // "uuid" | "password"

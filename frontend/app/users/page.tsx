@@ -20,6 +20,7 @@ export default function UsersPage() {
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<User | null>(null);
 
   const refresh = useCallback(() => {
     listUsers().then(setUsers).catch(() => setError("加载用户失败"));
@@ -56,8 +57,10 @@ export default function UsersPage() {
     await resetUserCreds(id);
     refresh();
   }
-  async function onDelete(id: number) {
-    await deleteUser(id);
+  async function doDelete() {
+    if (!confirmDelete) return;
+    await deleteUser(confirmDelete.id);
+    setConfirmDelete(null);
     refresh();
   }
 
@@ -85,7 +88,7 @@ export default function UsersPage() {
                 <span className="flex gap-2">
                   <Button variant="outline" className="rounded-full" onClick={() => { setError(""); setForm({ id: u.id, name: u.name, inboundIds: u.inboundIds }); }}>编辑</Button>
                   <Button variant="outline" className="rounded-full" onClick={() => onReset(u.id)}>重置凭证</Button>
-                  <Button variant="outline" className="rounded-full" onClick={() => onDelete(u.id)}>删除</Button>
+                  <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(u)}>删除</Button>
                 </span>
               </div>
             ))}
@@ -125,6 +128,16 @@ export default function UsersPage() {
             </div>
           </form>
         )}
+      </Modal>
+
+      <Modal open={confirmDelete !== null} onClose={() => setConfirmDelete(null)} title="删除用户">
+        <p className="mb-4 text-sm text-muted-foreground">
+          确定删除用户 <span className="font-mono">{confirmDelete?.name}</span>？此操作不可撤销。
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(null)}>取消</Button>
+          <Button className="rounded-full" onClick={doDelete}>确认删除</Button>
+        </div>
       </Modal>
     </AppShell>
   );

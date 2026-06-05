@@ -36,6 +36,7 @@ export default function InboundsPage() {
   const [types, setTypes] = useState<InboundType[]>([]);
   const [form, setForm] = useState<FormState | null>(null);
   const [confirmReset, setConfirmReset] = useState<Inbound | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Inbound | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -57,7 +58,7 @@ export default function InboundsPage() {
     setForm({
       id: ib.id, type: ib.type, tag: ib.tag, port: String(ib.port),
       handshake: String(pi.serverName ?? "www.microsoft.com"),
-      handshakePort: "443",
+      handshakePort: String(pi.handshakePort ?? "443"),
       sni: String(pi.serverName ?? "bing.com"),
       up: String(pi.upMbps ?? "100"),
       down: String(pi.downMbps ?? "100"),
@@ -97,8 +98,10 @@ export default function InboundsPage() {
     setConfirmReset(null);
     refresh();
   }
-  async function onDelete(id: number) {
-    await deleteInbound(id);
+  async function doDelete() {
+    if (!confirmDelete) return;
+    await deleteInbound(confirmDelete.id);
+    setConfirmDelete(null);
     refresh();
   }
 
@@ -122,7 +125,7 @@ export default function InboundsPage() {
                 <div className="flex gap-2">
                   <Button variant="outline" className="rounded-full" onClick={() => openEdit(ib)}>编辑</Button>
                   <Button variant="outline" className="rounded-full" onClick={() => setConfirmReset(ib)}>重置密钥</Button>
-                  <Button variant="outline" className="rounded-full" onClick={() => onDelete(ib.id)}>删除</Button>
+                  <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(ib)}>删除</Button>
                 </div>
               </div>
             </CardHeader>
@@ -208,6 +211,16 @@ export default function InboundsPage() {
         <div className="flex justify-end gap-3">
           <Button variant="outline" className="rounded-full" onClick={() => setConfirmReset(null)}>取消</Button>
           <Button className="rounded-full" onClick={doReset}>确认重置</Button>
+        </div>
+      </Modal>
+
+      <Modal open={confirmDelete !== null} onClose={() => setConfirmDelete(null)} title="删除入站">
+        <p className="mb-4 text-sm text-muted-foreground">
+          确定删除入站 <span className="font-mono">{confirmDelete?.tag}</span>？此操作不可撤销。
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(null)}>取消</Button>
+          <Button className="rounded-full" onClick={doDelete}>确认删除</Button>
         </div>
       </Modal>
     </AppShell>
