@@ -308,6 +308,9 @@ func (s *Service) APIConfig() (ExperimentalConfig, error) {
 		if err == nil {
 			return m.Value, nil
 		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", err
+		}
 		val := def
 		if key == metaClashSecret {
 			val = genToken()

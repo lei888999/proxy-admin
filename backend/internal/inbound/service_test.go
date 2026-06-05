@@ -29,6 +29,27 @@ func newTestService(t *testing.T) (*Service, *fakeWriter) {
 	return NewService(db, w), w
 }
 
+func TestAPIConfigIdempotent(t *testing.T) {
+	s, _ := newTestService(t)
+	c1, err := s.APIConfig()
+	if err != nil {
+		t.Fatalf("APIConfig: %v", err)
+	}
+	c2, err := s.APIConfig()
+	if err != nil {
+		t.Fatalf("APIConfig: %v", err)
+	}
+	if c1.ClashSecret == "" {
+		t.Fatal("clash secret should be generated")
+	}
+	if c1.ClashSecret != c2.ClashSecret {
+		t.Fatalf("secret changed between calls: %s -> %s", c1.ClashSecret, c2.ClashSecret)
+	}
+	if c1.ClashAddr != c2.ClashAddr || c1.V2RayAddr != c2.V2RayAddr {
+		t.Fatal("api addresses changed between calls")
+	}
+}
+
 func TestCreateUserWithInbounds(t *testing.T) {
 	s, w := newTestService(t)
 	v, _ := s.CreateInbound("vless-reality", "v1", 8443, nil)
