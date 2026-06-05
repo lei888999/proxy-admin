@@ -93,5 +93,26 @@ func (s *Service) Stop() (Status, error) {
 	return s.statusLocked(), err
 }
 
+// Restart stops sing-box (ignoring "not running") and starts it again so a
+// regenerated config takes effect.
+func (s *Service) Restart() (Status, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.pm.Stop(); err != nil && err != ErrNotRunning {
+		return s.statusLocked(), err
+	}
+	bin := s.resolveBin()
+	if bin == "" {
+		return s.statusLocked(), ErrNotInstalled
+	}
+	if !s.store.Exists() {
+		return s.statusLocked(), ErrNoConfig
+	}
+	if err := s.pm.Start(bin, s.store.Path()); err != nil {
+		return s.statusLocked(), err
+	}
+	return s.statusLocked(), nil
+}
+
 func (s *Service) GetConfig() (string, error) { return s.store.Get() }
 func (s *Service) SaveConfig(c string) error  { return s.store.Save(c) }

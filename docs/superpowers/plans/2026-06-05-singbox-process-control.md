@@ -602,13 +602,13 @@ func newService(t *testing.T, env *fakeEnv) *Service {
 func TestStatusInstalledWithConfig(t *testing.T) {
 	env := newFakeEnv()
 	env.binPath = "/usr/bin/sing-box"
-	env.versionOut, env.versionOK = "sing-box version 1.14.0", true
+	env.versionOut, env.versionOK = "sing-box version 1.13.13", true
 	svc := newService(t, env)
 	if err := svc.SaveConfig(`{"log":{}}`); err != nil {
 		t.Fatalf("SaveConfig: %v", err)
 	}
 	st := svc.Status()
-	if !st.Installed || st.Version != "1.14.0" || !st.HasConfig {
+	if !st.Installed || st.Version != "1.13.13" || !st.HasConfig {
 		t.Fatalf("status = %+v", st)
 	}
 	if st.Running {
@@ -636,7 +636,7 @@ func TestStartNoConfig(t *testing.T) {
 func TestStartSuccessReturnsRunningStatus(t *testing.T) {
 	env := newFakeEnv()
 	env.binPath = "/usr/bin/sing-box"
-	env.versionOut, env.versionOK = "sing-box version 1.14.0", true
+	env.versionOut, env.versionOK = "sing-box version 1.13.13", true
 	env.spawnPid = 7
 	env.alive[7] = true
 	svc := newService(t, env)
@@ -847,9 +847,9 @@ func do(r *gin.Engine, method, path, body string) *httptest.ResponseRecorder {
 }
 
 func TestStatusEndpoint(t *testing.T) {
-	r := newRouter(&fakeCtrl{status: singbox.Status{Installed: true, Version: "1.14.0", HasConfig: true}})
+	r := newRouter(&fakeCtrl{status: singbox.Status{Installed: true, Version: "1.13.13", HasConfig: true}})
 	w := do(r, http.MethodGet, "/api/status", "")
-	if w.Code != 200 || !strings.Contains(w.Body.String(), `"version":"1.14.0"`) || !strings.Contains(w.Body.String(), `"hasConfig":true`) {
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"version":"1.13.13"`) || !strings.Contains(w.Body.String(), `"hasConfig":true`) {
 		t.Fatalf("code=%d body=%s", w.Code, w.Body.String())
 	}
 }
@@ -1120,7 +1120,7 @@ git commit -m "refactor(backend): wire internal/singbox, drop internal/service"
 
 ---
 
-## Task 8: 部署改动（内置 sing-box 1.14.0 + SINGBOX_DIR）
+## Task 8: 部署改动（内置 sing-box 1.13.13 + SINGBOX_DIR）
 
 **Files:**
 - Modify: `docker-compose.yml`
@@ -1130,7 +1130,7 @@ git commit -m "refactor(backend): wire internal/singbox, drop internal/service"
 
 把 `SING_BOX_IMAGE` 默认改为钉版，并加 `SINGBOX_DIR`。`args` 段：
 ```yaml
-        SING_BOX_IMAGE: ${SING_BOX_IMAGE:-ghcr.io/sagernet/sing-box:v1.14.0}
+        SING_BOX_IMAGE: ${SING_BOX_IMAGE:-ghcr.io/sagernet/sing-box:v1.13.13}
 ```
 `environment` 段加一行：
 ```yaml
@@ -1141,7 +1141,7 @@ git commit -m "refactor(backend): wire internal/singbox, drop internal/service"
 
 在 `scripts/deploy-native.sh` 顶部变量区（`SSH_PORT=...` 之后）加：
 ```bash
-SINGBOX_VERSION="${SINGBOX_VERSION:-1.14.0}"
+SINGBOX_VERSION="${SINGBOX_VERSION:-1.13.13}"
 ```
 在「上传 binary」之前插入一段：下载对应架构 sing-box 并上传到 `$DEPLOY_PATH/data/singbox/bin/`：
 ```bash
@@ -1169,7 +1169,7 @@ Expected: `OK`
 
 ```bash
 git add docker-compose.yml scripts/deploy-native.sh
-git commit -m "build: bundle sing-box 1.14.0 at deploy, set SINGBOX_DIR"
+git commit -m "build: bundle sing-box 1.13.13 at deploy, set SINGBOX_DIR"
 ```
 
 ---
@@ -1187,7 +1187,7 @@ git commit -m "build: bundle sing-box 1.14.0 at deploy, set SINGBOX_DIR"
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ installed: true, version: "1.14.0", running: true, hasConfig: true }), { status: 200 })
+        new Response(JSON.stringify({ installed: true, version: "1.13.13", running: true, hasConfig: true }), { status: 200 })
       )
     );
     const st = await startSingbox();
@@ -1312,7 +1312,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
   usePathname: () => "/dashboard",
 }));
-const getStatusMock = vi.fn().mockResolvedValue({ installed: true, version: "1.14.0", running: false, hasConfig: false });
+const getStatusMock = vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: false });
 const logoutMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/api", () => ({
   getStatus: () => getStatusMock(),
@@ -1475,15 +1475,15 @@ beforeEach(() => {
 
 describe("DashboardPage", () => {
   it("显示运行状态与版本", async () => {
-    getStatusMock.mockResolvedValue({ installed: true, version: "1.14.0", running: true, hasConfig: true });
+    getStatusMock.mockResolvedValue({ installed: true, version: "1.13.13", running: true, hasConfig: true });
     render(<DashboardPage />);
     await waitFor(() => expect(screen.getByText(/运行中/)).toBeInTheDocument());
     expect(screen.getByText(/1\.14\.0/)).toBeInTheDocument();
   });
 
   it("点击启动调用 startSingbox", async () => {
-    getStatusMock.mockResolvedValue({ installed: true, version: "1.14.0", running: false, hasConfig: true });
-    startMock.mockResolvedValue({ installed: true, version: "1.14.0", running: true, hasConfig: true });
+    getStatusMock.mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true });
+    startMock.mockResolvedValue({ installed: true, version: "1.13.13", running: true, hasConfig: true });
     render(<DashboardPage />);
     const btn = await screen.findByRole("button", { name: /启动/ });
     await userEvent.click(btn);
@@ -1637,7 +1637,7 @@ const saveConfigMock = vi.fn();
 vi.mock("@/lib/api", () => ({
   getConfig: () => getConfigMock(),
   saveConfig: (c: string) => saveConfigMock(c),
-  getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.14.0", running: false, hasConfig: true }),
+  getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true }),
   logout: vi.fn(),
   UnauthorizedError: class extends Error {},
 }));
@@ -1937,7 +1937,7 @@ git commit -m "chore(frontend): visual polish for M2 shell" || echo "no changes"
 
 ## Self-Review Notes
 
-- **Spec 覆盖**：config 路径/二进制解析(Task1,5)、ConfigStore(Task3)、ProcessManager 启停/PID/检查/已运行/未运行(Task4)、Service 编排+Status.HasConfig(Task5)、5 端点+错误码映射(Task6)、main 接线去 service(Task7)、部署内置 1.14.0+SINGBOX_DIR(Task8)、前端 api(Task9)、B 端 shell(Task10)、概览启停(Task11)、配置编辑(Task12)、大气登录+全中文(Task13)、验证(Task14)。安装功能按规范已删除——无对应任务（正确）。
+- **Spec 覆盖**：config 路径/二进制解析(Task1,5)、ConfigStore(Task3)、ProcessManager 启停/PID/检查/已运行/未运行(Task4)、Service 编排+Status.HasConfig(Task5)、5 端点+错误码映射(Task6)、main 接线去 service(Task7)、部署内置 1.13.13+SINGBOX_DIR(Task8)、前端 api(Task9)、B 端 shell(Task10)、概览启停(Task11)、配置编辑(Task12)、大气登录+全中文(Task13)、验证(Task14)。安装功能按规范已删除——无对应任务（正确）。
 - **类型一致性**：`Status{Installed,Version,Running,HasConfig}` 前后端字段一致（Go json tag `hasConfig` ↔ TS `hasConfig`）；`SingboxController` 接口方法与 `*singbox.Service` 方法签名一致（`Start()/Stop() (Status,error)`、`GetConfig()(string,error)`、`SaveConfig(string)error`、`Status()Status`）；错误哨兵 `ErrNotInstalled/ErrNoConfig/ErrAlreadyRunning/ErrNotRunning/ErrInvalidJSON` 与 `*InvalidConfigError` 在 Task2 定义、Task4-6 使用一致。
 - **占位符**：无 TBD/TODO；每个代码步骤含完整代码。
 - **执行注意**：Task7 删除旧 `internal/service` 与 `status.go/_test.go` 后再编译；前端 shell/页面测试用中文断言，旧英文断言已在 Task11/13 同步替换。

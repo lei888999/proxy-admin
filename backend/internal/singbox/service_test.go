@@ -13,13 +13,13 @@ func newService(t *testing.T, env *fakeEnv) *Service {
 func TestStatusInstalledWithConfig(t *testing.T) {
 	env := newFakeEnv()
 	env.binPath = "/usr/bin/sing-box"
-	env.versionOut, env.versionOK = "sing-box version 1.14.0", true
+	env.versionOut, env.versionOK = "sing-box version 1.13.13", true
 	svc := newService(t, env)
 	if err := svc.SaveConfig(`{"log":{}}`); err != nil {
 		t.Fatalf("SaveConfig: %v", err)
 	}
 	st := svc.Status()
-	if !st.Installed || st.Version != "1.14.0" || !st.HasConfig {
+	if !st.Installed || st.Version != "1.13.13" || !st.HasConfig {
 		t.Fatalf("status = %+v", st)
 	}
 	if st.Running {
@@ -47,7 +47,7 @@ func TestStartNoConfig(t *testing.T) {
 func TestStartSuccessReturnsRunningStatus(t *testing.T) {
 	env := newFakeEnv()
 	env.binPath = "/usr/bin/sing-box"
-	env.versionOut, env.versionOK = "sing-box version 1.14.0", true
+	env.versionOut, env.versionOK = "sing-box version 1.13.13", true
 	env.spawnPid = 7
 	env.alive[7] = true
 	svc := newService(t, env)
@@ -69,5 +69,28 @@ func TestResolvePrefersManagedBin(t *testing.T) {
 	svc := New(env, dir, "")
 	if svc.Status().Installed != true {
 		t.Fatal("managed bin should count as installed")
+	}
+}
+
+func TestRestartStartsWhenStopped(t *testing.T) {
+	env := newFakeEnv()
+	env.binPath = "/usr/bin/sing-box"
+	env.spawnPid = 11
+	env.alive[11] = true
+	svc := newService(t, env)
+	_ = svc.SaveConfig(`{"log":{}}`)
+	st, err := svc.Restart()
+	if err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+	if !st.Running {
+		t.Fatalf("not running after restart: %+v", st)
+	}
+}
+
+func TestRestartNotInstalled(t *testing.T) {
+	svc := newService(t, newFakeEnv())
+	if _, err := svc.Restart(); err != ErrNotInstalled {
+		t.Fatalf("err = %v, want ErrNotInstalled", err)
 	}
 }
