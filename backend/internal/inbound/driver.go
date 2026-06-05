@@ -22,6 +22,7 @@ type Driver interface {
 	CredentialKind() string                                                // "uuid" | "password"
 	UpdateSettings(existing string, params map[string]any) (string, error) // keep secrets, apply params
 	ResetSecrets(existing string) (string, error)                          // new secrets, keep params
+	ClashProxy(name, serverHost string, port uint16, settings string, cred Cred) (map[string]any, error)
 }
 
 type TypeInfo struct {

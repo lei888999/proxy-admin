@@ -105,6 +105,18 @@ func (hysteria2) UpdateSettings(existing string, params map[string]any) (string,
 	return string(b), err
 }
 
+func (hysteria2) ClashProxy(name, serverHost string, port uint16, settings string, cred Cred) (map[string]any, error) {
+	var s hy2Settings
+	if err := json.Unmarshal([]byte(settings), &s); err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"name": name, "type": "hysteria2", "server": serverHost, "port": port,
+		"password": cred.Credential, "sni": s.ServerName,
+		"skip-cert-verify": true, "alpn": []string{"h3"},
+	}, nil
+}
+
 func (hysteria2) ResetSecrets(existing string) (string, error) {
 	var s hy2Settings
 	if err := json.Unmarshal([]byte(existing), &s); err != nil {

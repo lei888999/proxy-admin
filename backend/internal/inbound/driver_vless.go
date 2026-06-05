@@ -91,6 +91,20 @@ func (vlessReality) UpdateSettings(existing string, params map[string]any) (stri
 	return string(b), err
 }
 
+func (vlessReality) ClashProxy(name, serverHost string, port uint16, settings string, cred Cred) (map[string]any, error) {
+	var s vlessSettings
+	if err := json.Unmarshal([]byte(settings), &s); err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"name": name, "type": "vless", "server": serverHost, "port": port,
+		"uuid": cred.Credential, "network": "tcp", "udp": true, "tls": true,
+		"flow": s.Flow, "servername": s.ServerName,
+		"reality-opts":       map[string]any{"public-key": s.RealityPublicKey, "short-id": s.ShortID},
+		"client-fingerprint": "chrome",
+	}, nil
+}
+
 func (d vlessReality) ResetSecrets(existing string) (string, error) {
 	var s vlessSettings
 	if err := json.Unmarshal([]byte(existing), &s); err != nil {
