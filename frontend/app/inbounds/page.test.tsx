@@ -11,14 +11,15 @@ vi.mock("next/navigation", () => ({
 const listInboundsMock = vi.fn();
 const listTypesMock = vi.fn();
 const createInboundMock = vi.fn();
+const resetKeysMock = vi.fn();
+const deleteInboundMock = vi.fn();
 vi.mock("@/lib/api", () => ({
   listInbounds: () => listInboundsMock(),
   listInboundTypes: () => listTypesMock(),
   createInbound: (...a: unknown[]) => createInboundMock(...a),
-  deleteInbound: vi.fn(),
-  listUsers: vi.fn().mockResolvedValue([]),
-  createUser: vi.fn(),
-  deleteUser: vi.fn(),
+  updateInbound: vi.fn(),
+  resetInboundKeys: (...a: unknown[]) => resetKeysMock(...a),
+  deleteInbound: (...a: unknown[]) => deleteInboundMock(...a),
   getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true }),
   logout: vi.fn(),
   UnauthorizedError: class extends Error {},
@@ -30,33 +31,30 @@ beforeEach(() => {
     { type: "vless-reality", label: "VLESS-Reality", network: "tcp", defaultPort: 8443 },
     { type: "hysteria2", label: "Hysteria2", network: "udp", defaultPort: 443 },
   ]);
-  createInboundMock.mockReset().mockResolvedValue({ id: 1, type: "hysteria2", tag: "h1", port: 443, network: "udp", publicInfo: {}, users: [] });
+  createInboundMock.mockReset().mockResolvedValue({ id: 1 });
+  resetKeysMock.mockReset().mockResolvedValue({ id: 1 });
+  deleteInboundMock.mockReset().mockResolvedValue(undefined);
 });
 
 describe("InboundsPage", () => {
-  it("渲染协议下拉与默认 vless 字段", async () => {
+  it("点新建入站打开 modal 并能提交（默认协议）", async () => {
     render(<InboundsPage />);
-    await waitFor(() => expect(screen.getByLabelText(/协议/)).toBeInTheDocument());
-    expect(screen.getByLabelText(/握手域名/)).toBeInTheDocument();
-  });
-
-  it("切到 hysteria2 显示限速字段并提交 params", async () => {
-    render(<InboundsPage />);
-    await waitFor(() => expect(screen.getByLabelText(/协议/)).toBeInTheDocument());
-    await userEvent.selectOptions(screen.getByLabelText(/协议/), "hysteria2");
-    expect(screen.getByLabelText(/上行/)).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText(/标签/), "h1");
-    await userEvent.click(screen.getByRole("button", { name: /新建入站/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /新建入站/ }));
+    await userEvent.type(screen.getByLabelText(/标签/), "v9");
+    await userEvent.click(screen.getByRole("button", { name: /创建/ }));
     await waitFor(() => expect(createInboundMock).toHaveBeenCalled());
-    expect(createInboundMock.mock.calls[0][0]).toBe("hysteria2");
+    expect(createInboundMock.mock.calls[0][0]).toBe("vless-reality");
   });
 
-  it("按类型展示入站卡片 publicInfo", async () => {
+  it("重置密钥需二次确认", async () => {
     listInboundsMock.mockResolvedValue([
-      { id: 1, type: "vless-reality", tag: "v1", port: 8443, network: "tcp", publicInfo: { realityPublicKey: "PUB", shortId: "ab", serverName: "x", flow: "f" }, users: [] },
+      { id: 1, type: "vless-reality", tag: "v1", port: 8443, network: "tcp", publicInfo: { realityPublicKey: "PUB" } },
     ]);
     render(<InboundsPage />);
     await waitFor(() => expect(screen.getByText("v1")).toBeInTheDocument());
-    expect(screen.getByText("PUB")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /重置密钥/ }));
+    expect(resetKeysMock).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: /确认重置/ }));
+    await waitFor(() => expect(resetKeysMock).toHaveBeenCalledWith(1));
   });
 });

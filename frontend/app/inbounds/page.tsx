@@ -2,26 +2,40 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  listInbounds, listInboundTypes, createInbound, deleteInbound,
-  listUsers, createUser, deleteUser,
-  Inbound, InboundType, SingboxUser,
+  listInbounds, listInboundTypes, createInbound, updateInbound, resetInboundKeys, deleteInbound,
+  Inbound, InboundType,
 } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
+import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+
+type FormState = {
+  id?: number;
+  type: string;
+  tag: string;
+  port: string;
+  handshake: string;
+  handshakePort: string;
+  sni: string;
+  up: string;
+  down: string;
+};
+
+const emptyForm: FormState = {
+  type: "vless-reality", tag: "", port: "8443",
+  handshake: "www.microsoft.com", handshakePort: "443",
+  sni: "bing.com", up: "100", down: "100",
+};
 
 export default function InboundsPage() {
   const [inbounds, setInbounds] = useState<Inbound[]>([]);
   const [types, setTypes] = useState<InboundType[]>([]);
-  const [type, setType] = useState("vless-reality");
-  const [tag, setTag] = useState("");
-  const [port, setPort] = useState("8443");
-  const [handshake, setHandshake] = useState("www.microsoft.com");
-  const [sni, setSni] = useState("bing.com");
-  const [up, setUp] = useState("100");
-  const [down, setDown] = useState("100");
+  const [form, setForm] = useState<FormState | null>(null);
+  const [confirmReset, setConfirmReset] = useState<Inbound | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -30,170 +44,172 @@ export default function InboundsPage() {
   }, []);
   useEffect(() => {
     refresh();
-    listInboundTypes().then((ts) => {
-      setTypes(ts);
-      if (ts[0]) setType(ts[0].type);
-    }).catch(() => {});
+    listInboundTypes().then(setTypes).catch(() => {});
   }, [refresh]);
 
-  function onTypeChange(t: string) {
-    setType(t);
-    const info = types.find((x) => x.type === t);
-    if (info) setPort(String(info.defaultPort));
+  function openCreate() {
+    setError("");
+    setForm({ ...emptyForm });
+  }
+  function openEdit(ib: Inbound) {
+    setError("");
+    const pi = ib.publicInfo;
+    setForm({
+      id: ib.id, type: ib.type, tag: ib.tag, port: String(ib.port),
+      handshake: String(pi.serverName ?? "www.microsoft.com"),
+      handshakePort: "443",
+      sni: String(pi.serverName ?? "bing.com"),
+      up: String(pi.upMbps ?? "100"),
+      down: String(pi.downMbps ?? "100"),
+    });
   }
 
-  async function onCreate(e: React.FormEvent) {
+  function setType(t: string | null) {
+    if (!form || !t) return;
+    const info = types.find((x) => x.type === t);
+    setForm({ ...form, type: t, port: info ? String(info.defaultPort) : form.port });
+  }
+
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setError("");
+    if (!form) return;
     setBusy(true);
+    setError("");
     const params: Record<string, unknown> =
-      type === "hysteria2"
-        ? { serverName: sni, upMbps: Number(up), downMbps: Number(down) }
-        : { handshake };
+      form.type === "hysteria2"
+        ? { serverName: form.sni, upMbps: Number(form.up), downMbps: Number(form.down) }
+        : { handshake: form.handshake, handshakePort: Number(form.handshakePort) };
     try {
-      await createInbound(type, tag, Number(port), params);
-      setTag("");
+      if (form.id) await updateInbound(form.id, form.tag, Number(form.port), params);
+      else await createInbound(form.type, form.tag, Number(form.port), params);
+      setForm(null);
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "创建失败");
+      setError(err instanceof Error ? err.message : "保存失败");
     } finally {
       setBusy(false);
     }
   }
 
+  async function doReset() {
+    if (!confirmReset) return;
+    await resetInboundKeys(confirmReset.id);
+    setConfirmReset(null);
+    refresh();
+  }
   async function onDelete(id: number) {
     await deleteInbound(id);
     refresh();
   }
 
+  const isEdit = !!form?.id;
+
   return (
     <AppShell>
-      <h1 className="mb-6 text-2xl font-normal tracking-tight">入站</h1>
-
-      <Card className="mb-6 rounded-lg">
-        <CardHeader>
-          <CardTitle className="font-mono text-xs tracking-wider text-muted-foreground uppercase">新建入站</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onCreate} className="flex flex-wrap items-end gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="type" className="text-xs text-muted-foreground">协议</Label>
-              <select
-                id="type"
-                value={type}
-                onChange={(e) => onTypeChange(e.target.value)}
-                className="h-10 rounded-lg border border-input bg-secondary px-2 text-sm text-foreground"
-              >
-                {types.map((t) => (
-                  <option key={t.type} value={t.type}>{t.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="tag" className="text-xs text-muted-foreground">标签</Label>
-              <Input id="tag" className="h-10 w-40" value={tag} onChange={(e) => setTag(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="port" className="text-xs text-muted-foreground">端口</Label>
-              <Input id="port" className="h-10 w-24" value={port} onChange={(e) => setPort(e.target.value)} />
-            </div>
-            {type === "hysteria2" ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="sni" className="text-xs text-muted-foreground">SNI</Label>
-                  <Input id="sni" className="h-10 w-40" value={sni} onChange={(e) => setSni(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="up" className="text-xs text-muted-foreground">上行 Mbps</Label>
-                  <Input id="up" className="h-10 w-24" value={up} onChange={(e) => setUp(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="down" className="text-xs text-muted-foreground">下行 Mbps</Label>
-                  <Input id="down" className="h-10 w-24" value={down} onChange={(e) => setDown(e.target.value)} />
-                </div>
-              </>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="hs" className="text-xs text-muted-foreground">握手域名</Label>
-                <Input id="hs" className="h-10 w-56" value={handshake} onChange={(e) => setHandshake(e.target.value)} />
-              </div>
-            )}
-            <Button type="submit" className="h-10 rounded-full" disabled={busy}>新建入站</Button>
-          </form>
-          {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-        </CardContent>
-      </Card>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-normal tracking-tight">入站</h1>
+        <Button className="rounded-full" onClick={openCreate}>新建入站</Button>
+      </div>
 
       <div className="space-y-4">
         {inbounds.map((ib) => (
-          <InboundCard key={ib.id} inbound={ib} onDelete={() => onDelete(ib.id)} />
+          <Card key={ib.id} className="rounded-lg">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-normal">
+                  {ib.tag} <span className="text-muted-foreground">· {ib.type} · :{ib.port}/{ib.network}</span>
+                </CardTitle>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="rounded-full" onClick={() => openEdit(ib)}>编辑</Button>
+                  <Button variant="outline" className="rounded-full" onClick={() => setConfirmReset(ib)}>重置密钥</Button>
+                  <Button variant="outline" className="rounded-full" onClick={() => onDelete(ib.id)}>删除</Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="divide-y divide-border">
+                {Object.entries(ib.publicInfo).map(([k, v]) => (
+                  <div key={k} className="flex justify-between gap-4 py-1">
+                    <span className="font-mono text-xs text-muted-foreground uppercase">{k}</span>
+                    <span className="truncate font-mono text-xs">{String(v)}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         ))}
-        {inbounds.length === 0 && <p className="text-sm text-muted-foreground">暂无入站，先新建一个。</p>}
+        {inbounds.length === 0 && <p className="text-sm text-muted-foreground">暂无入站，点右上角新建。</p>}
       </div>
-    </AppShell>
-  );
-}
 
-function InboundCard({ inbound, onDelete }: { inbound: Inbound; onDelete: () => void }) {
-  const [users, setUsers] = useState<SingboxUser[]>(inbound.users ?? []);
-  const [name, setName] = useState("");
-
-  const reloadUsers = useCallback(() => {
-    listUsers(inbound.id).then(setUsers).catch(() => {});
-  }, [inbound.id]);
-
-  async function onAdd(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name) return;
-    await createUser(inbound.id, name);
-    setName("");
-    reloadUsers();
-  }
-  async function onRemove(id: number) {
-    await deleteUser(id);
-    reloadUsers();
-  }
-
-  const credLabel = inbound.type === "hysteria2" ? "密码" : "UUID";
-
-  const field = (k: string, v: unknown) => (
-    <div className="flex justify-between gap-4 py-1">
-      <span className="font-mono text-xs text-muted-foreground uppercase">{k}</span>
-      <span className="truncate font-mono text-xs">{String(v)}</span>
-    </div>
-  );
-
-  return (
-    <Card className="rounded-lg">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-normal">
-            {inbound.tag}{" "}
-            <span className="text-muted-foreground">· {inbound.type} · :{inbound.port}/{inbound.network}</span>
-          </CardTitle>
-          <Button variant="outline" className="rounded-full" onClick={onDelete}>删除</Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="mb-4 border-b border-border pb-3">
-          {Object.entries(inbound.publicInfo).map(([k, v]) => field(k, v))}
-        </div>
-        <p className="mb-2 font-mono text-xs text-muted-foreground uppercase">用户（{credLabel}）</p>
-        <div className="divide-y divide-border">
-          {users.map((u) => (
-            <div key={u.id} className="flex items-center justify-between gap-4 py-2">
-              <span className="text-sm">{u.name}</span>
-              <span className="truncate font-mono text-xs text-muted-foreground">{u.credential}</span>
-              <Button variant="outline" className="rounded-full" onClick={() => onRemove(u.id)}>删除</Button>
+      <Modal open={form !== null} onClose={() => setForm(null)} title={isEdit ? "编辑入站" : "新建入站"}>
+        {form && (
+          <form onSubmit={submit} className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">协议</Label>
+              <Select value={form.type} onValueChange={setType} disabled={isEdit}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {types.map((t) => (
+                    <SelectItem key={t.type} value={t.type}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          ))}
-          {users.length === 0 && <p className="py-2 text-sm text-muted-foreground">暂无用户</p>}
+            <div className="flex gap-4">
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="tag" className="text-xs text-muted-foreground">标签</Label>
+                <Input id="tag" value={form.tag} onChange={(e) => setForm({ ...form, tag: e.target.value })} />
+              </div>
+              <div className="w-28 space-y-2">
+                <Label htmlFor="port" className="text-xs text-muted-foreground">端口</Label>
+                <Input id="port" value={form.port} onChange={(e) => setForm({ ...form, port: e.target.value })} />
+              </div>
+            </div>
+            {form.type === "hysteria2" ? (
+              <div className="flex gap-4">
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="sni" className="text-xs text-muted-foreground">SNI</Label>
+                  <Input id="sni" value={form.sni} onChange={(e) => setForm({ ...form, sni: e.target.value })} />
+                </div>
+                <div className="w-24 space-y-2">
+                  <Label htmlFor="up" className="text-xs text-muted-foreground">上行</Label>
+                  <Input id="up" value={form.up} onChange={(e) => setForm({ ...form, up: e.target.value })} />
+                </div>
+                <div className="w-24 space-y-2">
+                  <Label htmlFor="down" className="text-xs text-muted-foreground">下行</Label>
+                  <Input id="down" value={form.down} onChange={(e) => setForm({ ...form, down: e.target.value })} />
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-4">
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="hs" className="text-xs text-muted-foreground">握手域名</Label>
+                  <Input id="hs" value={form.handshake} onChange={(e) => setForm({ ...form, handshake: e.target.value })} />
+                </div>
+                <div className="w-28 space-y-2">
+                  <Label htmlFor="hsp" className="text-xs text-muted-foreground">握手端口</Label>
+                  <Input id="hsp" value={form.handshakePort} onChange={(e) => setForm({ ...form, handshakePort: e.target.value })} />
+                </div>
+              </div>
+            )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" className="rounded-full" onClick={() => setForm(null)}>取消</Button>
+              <Button type="submit" className="rounded-full" disabled={busy}>{isEdit ? "保存" : "创建"}</Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      <Modal open={confirmReset !== null} onClose={() => setConfirmReset(null)} title="重置密钥">
+        <p className="mb-4 text-sm text-muted-foreground">
+          重置后会生成新的 reality 密钥 / 证书，已分发的旧客户端将失效。确定继续？
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" className="rounded-full" onClick={() => setConfirmReset(null)}>取消</Button>
+          <Button className="rounded-full" onClick={doReset}>确认重置</Button>
         </div>
-        <form onSubmit={onAdd} className="mt-3 flex items-center gap-3">
-          <Input className="h-9 w-40" placeholder="用户名称" value={name} onChange={(e) => setName(e.target.value)} />
-          <Button type="submit" className="h-9 rounded-full">添加用户</Button>
-        </form>
-      </CardContent>
-    </Card>
+      </Modal>
+    </AppShell>
   );
 }
