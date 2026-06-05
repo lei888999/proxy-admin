@@ -34,3 +34,24 @@ func TestLoadFromEnv(t *testing.T) {
 		t.Fatalf("JWTSecret = %q", c.JWTSecret)
 	}
 }
+
+func TestSingboxDefaults(t *testing.T) {
+	os.Clearenv()
+	c := Load()
+	if c.SingboxDir != "./singbox" {
+		t.Fatalf("SingboxDir = %q, want ./singbox", c.SingboxDir)
+	}
+	if c.SingboxBin != "" {
+		t.Fatalf("SingboxBin = %q, want empty", c.SingboxBin)
+	}
+}
+
+func TestSingboxFromEnv(t *testing.T) {
+	os.Clearenv()
+	os.Setenv("SINGBOX_DIR", "/data/singbox")
+	os.Setenv("SINGBOX_BIN", "/usr/local/bin/sing-box")
+	c := Load()
+	if c.SingboxDir != "/data/singbox" || c.SingboxBin != "/usr/local/bin/sing-box" {
+		t.Fatalf("got %q / %q", c.SingboxDir, c.SingboxBin)
+	}
+}
