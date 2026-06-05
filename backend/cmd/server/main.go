@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"singbox-admin/internal/inbound"
 	"singbox-admin/internal/middleware"
 	"singbox-admin/internal/singbox"
+	"singbox-admin/internal/traffic"
 	"singbox-admin/internal/web"
 )
 
@@ -37,6 +39,18 @@ func main() {
 	if err := inbSvc.BackfillUserTokens(); err != nil {
 		log.Fatalf("backfill tokens: %v", err)
 	}
+
+	exp, err := inbSvc.APIConfig()
+	if err != nil {
+		log.Fatalf("api config: %v", err)
+	}
+	if statsClient, err := traffic.NewStatsClient(exp.V2RayAddr); err != nil {
+		log.Printf("traffic stats disabled: %v", err)
+	} else {
+		poller := traffic.NewPoller(statsClient, inbSvc, 10*time.Second)
+		go poller.Run(context.Background())
+	}
+
 	inbHandler := handlers.NewInboundHandler(inbSvc, sbSvc)
 	userHandler := handlers.NewUserHandler(inbSvc)
 	subHandler := handlers.NewSubscriptionHandler(inbSvc, cfg.ServerHost)

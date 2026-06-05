@@ -188,3 +188,26 @@ func TestBackfillUserTokens(t *testing.T) {
 		t.Fatalf("token not backfilled: %q", got.SubToken)
 	}
 }
+
+func TestAddAndResetTraffic(t *testing.T) {
+	s, _ := newTestService(t)
+	u, _ := s.CreateUser("alice", nil)
+	if err := s.AddTraffic(u.ID, 100, 200); err != nil {
+		t.Fatalf("AddTraffic: %v", err)
+	}
+	if err := s.AddTraffic(u.ID, 50, 0); err != nil {
+		t.Fatalf("AddTraffic: %v", err)
+	}
+	var got models.User
+	s.db.First(&got, u.ID)
+	if got.UpBytes != 150 || got.DownBytes != 200 {
+		t.Fatalf("up=%d down=%d, want 150/200", got.UpBytes, got.DownBytes)
+	}
+	if err := s.ResetUserTraffic(u.ID); err != nil {
+		t.Fatalf("ResetUserTraffic: %v", err)
+	}
+	s.db.First(&got, u.ID)
+	if got.UpBytes != 0 || got.DownBytes != 0 {
+		t.Fatalf("after reset up=%d down=%d", got.UpBytes, got.DownBytes)
+	}
+}

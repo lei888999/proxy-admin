@@ -290,6 +290,24 @@ func (s *Service) DeleteUser(id uint) error {
 	return s.Regenerate()
 }
 
+// AddTraffic accumulates a delta onto a user's cumulative counters.
+func (s *Service) AddTraffic(userID uint, up, down int64) error {
+	return s.db.Model(&models.User{}).Where("id = ?", userID).
+		UpdateColumns(map[string]any{
+			"up_bytes":   gorm.Expr("up_bytes + ?", up),
+			"down_bytes": gorm.Expr("down_bytes + ?", down),
+		}).Error
+}
+
+// ResetUserTraffic zeroes a user's cumulative counters.
+func (s *Service) ResetUserTraffic(id uint) error {
+	var u models.User
+	if err := s.db.First(&u, id).Error; err != nil {
+		return ErrNotFound
+	}
+	return s.db.Model(&u).UpdateColumns(map[string]any{"up_bytes": 0, "down_bytes": 0}).Error
+}
+
 const (
 	metaClashAddr   = "clash_api_addr"
 	metaClashSecret = "clash_api_secret"
