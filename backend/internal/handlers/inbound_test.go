@@ -97,6 +97,20 @@ func TestDeleteInboundNotFoundHandler(t *testing.T) {
 	}
 }
 
+func TestCreateInboundInvalidTagHandler(t *testing.T) {
+	w := inbReq(inbRouter(&fakeInbCtrl{createErr: inbound.ErrInvalidTag}, &fakeRestarter{}), http.MethodPost, "/api/inbounds", `{"tag":"x","port":1,"handshake":"h"}`)
+	if w.Code != 400 {
+		t.Fatalf("code=%d", w.Code)
+	}
+}
+
+func TestCreateInboundPortInUseHandler(t *testing.T) {
+	w := inbReq(inbRouter(&fakeInbCtrl{createErr: inbound.ErrPortInUse}, &fakeRestarter{}), http.MethodPost, "/api/inbounds", `{"tag":"x","port":1,"handshake":"h"}`)
+	if w.Code != 409 {
+		t.Fatalf("code=%d", w.Code)
+	}
+}
+
 func TestCreateUserOK(t *testing.T) {
 	c := &fakeInbCtrl{}
 	w := inbReq(inbRouter(c, &fakeRestarter{}), http.MethodPost, "/api/inbounds/1/users", `{"name":"alice"}`)

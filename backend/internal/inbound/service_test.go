@@ -85,6 +85,34 @@ func TestCreateUserInboundNotFound(t *testing.T) {
 	}
 }
 
+func TestCreateInboundWhitespaceTagRejected(t *testing.T) {
+	s, _ := newTestService(t)
+	if _, err := s.CreateInbound("   ", 443, "h"); err != ErrInvalidTag {
+		t.Fatalf("err = %v, want ErrInvalidTag", err)
+	}
+}
+
+func TestCreateInboundTrimsTag(t *testing.T) {
+	s, _ := newTestService(t)
+	in, err := s.CreateInbound("  v1  ", 443, "h")
+	if err != nil {
+		t.Fatalf("CreateInbound: %v", err)
+	}
+	if in.Tag != "v1" {
+		t.Fatalf("tag = %q, want v1 (trimmed)", in.Tag)
+	}
+}
+
+func TestCreateInboundPortInUse(t *testing.T) {
+	s, _ := newTestService(t)
+	if _, err := s.CreateInbound("a", 443, "h"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateInbound("b", 443, "h"); err != ErrPortInUse {
+		t.Fatalf("err = %v, want ErrPortInUse", err)
+	}
+}
+
 func TestDeleteInboundNotFound(t *testing.T) {
 	s, _ := newTestService(t)
 	if err := s.DeleteInbound(123); err != ErrNotFound {
