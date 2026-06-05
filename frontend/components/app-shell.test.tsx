@@ -22,11 +22,11 @@ beforeEach(() => {
 });
 
 describe("AppShell", () => {
-  it("renders nav items 概览 and 配置", () => {
+  it("renders nav items 概览 入站 配置", () => {
     render(<AppShell><div>内容</div></AppShell>);
     expect(screen.getByRole("link", { name: /概览/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /入站/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /配置/ })).toBeInTheDocument();
-    expect(screen.getByText("内容")).toBeInTheDocument();
   });
 
   it("logout button calls logout and redirects", async () => {

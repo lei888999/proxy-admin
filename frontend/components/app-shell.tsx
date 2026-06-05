@@ -7,6 +7,7 @@ import { getStatus, logout, UnauthorizedError } from "@/lib/api";
 
 const NAV = [
   { href: "/dashboard", label: "概览" },
+  { href: "/inbounds", label: "入站" },
   { href: "/config", label: "配置" },
 ];
 
