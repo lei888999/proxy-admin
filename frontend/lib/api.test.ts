@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { login, getStatus, UnauthorizedError, startSingbox, getConfig, saveConfig, listInbounds, createInbound, applySingbox } from "./api";
+import { login, getStatus, UnauthorizedError, startSingbox, getConfig, saveConfig, listInbounds, listInboundTypes, createInbound, applySingbox } from "./api";
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -76,13 +76,20 @@ describe("api", () => {
     expect(ins[0].tag).toBe("v1");
   });
 
-  it("createInbound posts body", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 1, tag: "v1" }), { status: 200 }));
+  it("listInboundTypes returns array", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify([{ type: "hysteria2", label: "Hysteria2", network: "udp", defaultPort: 443 }]), { status: 200 })));
+    const ts = await listInboundTypes();
+    expect(ts[0].type).toBe("hysteria2");
+  });
+
+  it("createInbound posts type/tag/port/params", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 1 }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
-    await createInbound("v1", 443, "www.microsoft.com");
+    await createInbound("hysteria2", "h1", 443, { upMbps: 50 });
     const [, init] = fetchMock.mock.calls[0];
-    expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body).port).toBe(443);
+    const body = JSON.parse(init.body);
+    expect(body.type).toBe("hysteria2");
+    expect(body.params.upMbps).toBe(50);
   });
 
   it("applySingbox throws backend error on failure", async () => {
