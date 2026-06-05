@@ -184,6 +184,8 @@ type UserView struct {
 	UUID        string   `json:"uuid"`
 	Password    string   `json:"password"`
 	SubToken    string   `json:"subToken"`
+	UpBytes     int64    `json:"upBytes"`
+	DownBytes   int64    `json:"downBytes"`
 	InboundIDs  []uint   `json:"inboundIds"`
 	InboundTags []string `json:"inboundTags"`
 }
@@ -195,7 +197,8 @@ func (s *Service) ListUserViews() ([]UserView, error) {
 	}
 	views := make([]UserView, 0, len(us))
 	for _, u := range us {
-		v := UserView{ID: u.ID, Name: u.Name, UUID: u.UUID, Password: u.Password, SubToken: u.SubToken, InboundIDs: []uint{}, InboundTags: []string{}}
+		v := UserView{ID: u.ID, Name: u.Name, UUID: u.UUID, Password: u.Password, SubToken: u.SubToken,
+			UpBytes: u.UpBytes, DownBytes: u.DownBytes, InboundIDs: []uint{}, InboundTags: []string{}}
 		for _, in := range u.Inbounds {
 			v.InboundIDs = append(v.InboundIDs, in.ID)
 			v.InboundTags = append(v.InboundTags, in.Tag)

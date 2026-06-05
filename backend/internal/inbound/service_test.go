@@ -211,3 +211,18 @@ func TestAddAndResetTraffic(t *testing.T) {
 		t.Fatalf("after reset up=%d down=%d", got.UpBytes, got.DownBytes)
 	}
 }
+
+func TestListUserViewsExposesTraffic(t *testing.T) {
+	s, _ := newTestService(t)
+	u, _ := s.CreateUser("alice", nil)
+	if err := s.AddTraffic(u.ID, 1024, 2048); err != nil {
+		t.Fatalf("AddTraffic: %v", err)
+	}
+	views, err := s.ListUserViews()
+	if err != nil {
+		t.Fatalf("ListUserViews: %v", err)
+	}
+	if len(views) != 1 || views[0].UpBytes != 1024 || views[0].DownBytes != 2048 {
+		t.Fatalf("view traffic not exposed: %+v", views)
+	}
+}
