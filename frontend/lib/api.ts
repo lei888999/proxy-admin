@@ -82,13 +82,6 @@ export interface InboundType {
   defaultPort: number;
 }
 
-export interface SingboxUser {
-  id: number;
-  inboundId: number;
-  name: string;
-  credential: string;
-}
-
 export interface Inbound {
   id: number;
   type: string;
@@ -96,7 +89,15 @@ export interface Inbound {
   port: number;
   network: string;
   publicInfo: Record<string, unknown>;
-  users?: SingboxUser[];
+}
+
+export interface User {
+  id: number;
+  name: string;
+  uuid: string;
+  password: string;
+  inboundIds: number[];
+  inboundTags: string[];
 }
 
 export async function listInbounds(): Promise<Inbound[]> {
@@ -134,17 +135,17 @@ export async function deleteInbound(id: number): Promise<void> {
   if (!res.ok) throw new Error("删除入站失败");
 }
 
-export async function listUsers(inboundID: number): Promise<SingboxUser[]> {
-  const res = await request(`/api/inbounds/${inboundID}/users`);
+export async function listUsers(): Promise<User[]> {
+  const res = await request("/api/users");
   if (!res.ok) throw new Error("加载用户失败");
   return res.json();
 }
 
-export async function createUser(inboundID: number, name: string): Promise<SingboxUser> {
-  const res = await request(`/api/inbounds/${inboundID}/users`, {
+export async function createUser(name: string, inboundIds: number[]): Promise<User> {
+  const res = await request("/api/users", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, inboundIds }),
   });
   if (!res.ok) {
     const b = await res.json().catch(() => ({}));
@@ -153,9 +154,44 @@ export async function createUser(inboundID: number, name: string): Promise<Singb
   return res.json();
 }
 
+export async function updateUser(id: number, name: string, inboundIds: number[]): Promise<User> {
+  const res = await request(`/api/users/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, inboundIds }),
+  });
+  if (!res.ok) throw new Error("更新用户失败");
+  return res.json();
+}
+
+export async function resetUserCreds(id: number): Promise<User> {
+  const res = await request(`/api/users/${id}/reset`, { method: "POST" });
+  if (!res.ok) throw new Error("重置凭证失败");
+  return res.json();
+}
+
 export async function deleteUser(id: number): Promise<void> {
   const res = await request(`/api/users/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("删除用户失败");
+}
+
+export async function updateInbound(id: number, tag: string, port: number, params: Record<string, unknown>): Promise<Inbound> {
+  const res = await request(`/api/inbounds/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tag, port, params }),
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new Error(b.error || "更新入站失败");
+  }
+  return res.json();
+}
+
+export async function resetInboundKeys(id: number): Promise<Inbound> {
+  const res = await request(`/api/inbounds/${id}/reset-keys`, { method: "POST" });
+  if (!res.ok) throw new Error("重置密钥失败");
+  return res.json();
 }
 
 export async function applySingbox(): Promise<SingboxStatus> {

@@ -94,3 +94,37 @@ func toInt(v any) (int, bool) {
 	}
 	return 0, false
 }
+
+func (hysteria2) CredentialKind() string { return "password" }
+
+func (hysteria2) UpdateSettings(existing string, params map[string]any) (string, error) {
+	var s hy2Settings
+	if err := json.Unmarshal([]byte(existing), &s); err != nil {
+		return "", err
+	}
+	if v, ok := params["serverName"].(string); ok && v != "" {
+		s.ServerName = v
+	}
+	if v, ok := toInt(params["upMbps"]); ok {
+		s.UpMbps = v
+	}
+	if v, ok := toInt(params["downMbps"]); ok {
+		s.DownMbps = v
+	}
+	b, err := json.Marshal(s)
+	return string(b), err
+}
+
+func (hysteria2) ResetSecrets(existing string) (string, error) {
+	var s hy2Settings
+	if err := json.Unmarshal([]byte(existing), &s); err != nil {
+		return "", err
+	}
+	cert, key, err := selfSignedCert(s.ServerName)
+	if err != nil {
+		return "", err
+	}
+	s.CertPEM, s.KeyPEM = cert, key
+	b, err := json.Marshal(s)
+	return string(b), err
+}

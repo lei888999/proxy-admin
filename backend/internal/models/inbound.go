@@ -9,16 +9,17 @@ type Inbound struct {
 	Network   string    `gorm:"not null" json:"network"`
 	Port      uint16    `gorm:"not null" json:"port"`
 	Settings  string    `gorm:"not null" json:"-"`
-	Users     []User    `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	Users     []User    `gorm:"many2many:user_inbounds;" json:"-"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type User struct {
-	ID         uint      `gorm:"primaryKey" json:"id"`
-	InboundID  uint      `gorm:"index;not null" json:"inboundId"`
-	Name       string    `gorm:"not null" json:"name"`
-	Credential string    `gorm:"not null" json:"credential"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Name      string    `gorm:"not null" json:"name"`
+	UUID      string    `gorm:"not null" json:"uuid"`
+	Password  string    `gorm:"not null" json:"password"`
+	Inbounds  []Inbound `gorm:"many2many:user_inbounds;" json:"-"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }

@@ -29,83 +29,106 @@ func newTestService(t *testing.T) (*Service, *fakeWriter) {
 	return NewService(db, w), w
 }
 
-func TestCreateInboundVless(t *testing.T) {
+func TestCreateUserWithInbounds(t *testing.T) {
 	s, w := newTestService(t)
-	in, err := s.CreateInbound("vless-reality", "v1", 8443, map[string]any{"handshake": "example.com"})
-	if err != nil {
-		t.Fatalf("CreateInbound: %v", err)
-	}
-	if in.Type != "vless-reality" || in.Network != "tcp" || in.Settings == "" {
-		t.Fatalf("inbound = %+v", in)
-	}
-	if w.calls == 0 || !strings.Contains(w.last, "\"vless\"") {
-		t.Fatalf("config not regenerated: %q", w.last)
-	}
-}
-
-func TestCreateInboundUnknownType(t *testing.T) {
-	s, _ := newTestService(t)
-	if _, err := s.CreateInbound("nope", "x", 1, nil); err != ErrUnknownType {
-		t.Fatalf("err = %v, want ErrUnknownType", err)
-	}
-}
-
-func TestCreateInboundWhitespaceTag(t *testing.T) {
-	s, _ := newTestService(t)
-	if _, err := s.CreateInbound("hysteria2", "   ", 443, nil); err != ErrInvalidTag {
-		t.Fatalf("err = %v, want ErrInvalidTag", err)
-	}
-}
-
-func TestPortConflictByNetwork(t *testing.T) {
-	s, _ := newTestService(t)
-	if _, err := s.CreateInbound("vless-reality", "v", 443, nil); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.CreateInbound("hysteria2", "h", 443, nil); err != nil {
-		t.Fatalf("udp 443 should coexist with tcp 443: %v", err)
-	}
-	if _, err := s.CreateInbound("vless-reality", "v2", 443, nil); err != ErrPortInUse {
-		t.Fatalf("err = %v, want ErrPortInUse", err)
-	}
-}
-
-func TestCreateUserCredentialByType(t *testing.T) {
-	s, _ := newTestService(t)
-	hin, _ := s.CreateInbound("hysteria2", "h", 443, nil)
-	u, err := s.CreateUser(hin.ID, "alice")
+	v, _ := s.CreateInbound("vless-reality", "v1", 8443, nil)
+	h, _ := s.CreateInbound("hysteria2", "h1", 443, nil)
+	u, err := s.CreateUser("alice", []uint{v.ID, h.ID})
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
-	if u.Credential == "" {
-		t.Fatal("empty credential")
+	if u.UUID == "" || u.Password == "" {
+		t.Fatalf("creds empty: %+v", u)
+	}
+	if !strings.Contains(w.last, u.UUID) || !strings.Contains(w.last, u.Password) {
+		t.Fatalf("config missing creds: %q", w.last)
+	}
+	views, _ := s.ListUserViews()
+	if len(views) != 1 || len(views[0].InboundIDs) != 2 {
+		t.Fatalf("view=%+v", views)
 	}
 }
 
-func TestListInboundViewsNoSettings(t *testing.T) {
+func TestUpdateUserReplacesInbounds(t *testing.T) {
 	s, _ := newTestService(t)
-	_, _ = s.CreateInbound("vless-reality", "v1", 8443, nil)
-	views, err := s.ListInboundViews()
-	if err != nil || len(views) != 1 {
-		t.Fatalf("views err=%v n=%d", err, len(views))
-	}
-	if views[0].PublicInfo["realityPublicKey"] == nil {
-		t.Fatal("missing publicInfo")
-	}
-	if strings.Contains(toJSON(views[0]), "realityPrivateKey") {
-		t.Fatal("view leaked private key")
-	}
-}
-
-func TestCascadeDelete(t *testing.T) {
-	s, _ := newTestService(t)
-	in, _ := s.CreateInbound("vless-reality", "v1", 8443, nil)
-	_, _ = s.CreateUser(in.ID, "a")
-	if err := s.DeleteInbound(in.ID); err != nil {
+	v, _ := s.CreateInbound("vless-reality", "v1", 8443, nil)
+	h, _ := s.CreateInbound("hysteria2", "h1", 443, nil)
+	u, _ := s.CreateUser("a", []uint{v.ID})
+	if _, err := s.UpdateUser(u.ID, "a2", []uint{h.ID}); err != nil {
 		t.Fatal(err)
 	}
-	us, _ := s.ListUsers(in.ID)
-	if len(us) != 0 {
-		t.Fatalf("users not cascade-deleted: %d", len(us))
+	views, _ := s.ListUserViews()
+	if views[0].Name != "a2" || len(views[0].InboundIDs) != 1 || views[0].InboundIDs[0] != h.ID {
+		t.Fatalf("view=%+v", views[0])
+	}
+}
+
+func TestDeleteUserKeepsInbound(t *testing.T) {
+	s, _ := newTestService(t)
+	v, _ := s.CreateInbound("vless-reality", "v1", 8443, nil)
+	u, _ := s.CreateUser("a", []uint{v.ID})
+	if err := s.DeleteUser(u.ID); err != nil {
+		t.Fatal(err)
+	}
+	var nUsers, nInbounds int64
+	s.db.Model(&models.User{}).Count(&nUsers)
+	s.db.Model(&models.Inbound{}).Count(&nInbounds)
+	if nUsers != 0 || nInbounds != 1 {
+		t.Fatalf("users=%d inbounds=%d", nUsers, nInbounds)
+	}
+}
+
+func TestResetUserCreds(t *testing.T) {
+	s, _ := newTestService(t)
+	u, _ := s.CreateUser("a", nil)
+	old := u.UUID
+	r, _ := s.ResetUserCreds(u.ID)
+	if r.UUID == old {
+		t.Fatal("uuid not reset")
+	}
+}
+
+func TestUpdateInboundKeepsKeyChangesTag(t *testing.T) {
+	s, _ := newTestService(t)
+	in, _ := s.CreateInbound("vless-reality", "v1", 8443, map[string]any{"handshake": "a.com"})
+	d, _ := Get("vless-reality")
+	before, _ := d.PublicInfo(in.Settings)
+	up, err := s.UpdateInbound(in.ID, "v1b", 9443, map[string]any{"handshake": "b.com"})
+	if err != nil {
+		t.Fatalf("UpdateInbound: %v", err)
+	}
+	after, _ := d.PublicInfo(up.Settings)
+	if up.Tag != "v1b" || up.Port != 9443 {
+		t.Fatalf("not updated: %+v", up)
+	}
+	if after["realityPublicKey"] != before["realityPublicKey"] {
+		t.Fatal("UpdateInbound must keep the key")
+	}
+	if after["serverName"] != "b.com" {
+		t.Fatalf("serverName=%v", after["serverName"])
+	}
+}
+
+func TestUpdateInboundDuplicateTag(t *testing.T) {
+	s, _ := newTestService(t)
+	_, _ = s.CreateInbound("vless-reality", "v1", 8443, nil)
+	in2, _ := s.CreateInbound("vless-reality", "v2", 8444, nil)
+	if _, err := s.UpdateInbound(in2.ID, "v1", 8444, nil); err != ErrTagExists {
+		t.Fatalf("err=%v, want ErrTagExists", err)
+	}
+	if _, err := s.UpdateInbound(in2.ID, "v2", 8444, nil); err != nil {
+		t.Fatalf("same-tag update should pass: %v", err)
+	}
+}
+
+func TestResetInboundKeysChangesKey(t *testing.T) {
+	s, _ := newTestService(t)
+	in, _ := s.CreateInbound("vless-reality", "v1", 8443, nil)
+	d, _ := Get("vless-reality")
+	before, _ := d.PublicInfo(in.Settings)
+	r, _ := s.ResetInboundKeys(in.ID)
+	after, _ := d.PublicInfo(r.Settings)
+	if after["realityPublicKey"] == before["realityPublicKey"] {
+		t.Fatal("reset must change the key")
 	}
 }

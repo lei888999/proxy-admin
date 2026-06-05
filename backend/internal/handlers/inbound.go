@@ -16,10 +16,9 @@ type InboundController interface {
 	ListInboundViews() ([]inbound.InboundView, error)
 	Types() []inbound.TypeInfo
 	CreateInbound(typ, tag string, port uint16, params map[string]any) (models.Inbound, error)
+	UpdateInbound(id uint, tag string, port uint16, params map[string]any) (models.Inbound, error)
+	ResetInboundKeys(id uint) (models.Inbound, error)
 	DeleteInbound(id uint) error
-	ListUsers(inboundID uint) ([]models.User, error)
-	CreateUser(inboundID uint, name string) (models.User, error)
-	DeleteUser(id uint) error
 	Regenerate() error
 }
 
@@ -44,9 +43,7 @@ func parseID(c *gin.Context) (uint, bool) {
 	return uint(v), true
 }
 
-func (h *InboundHandler) ListTypes(c *gin.Context) {
-	c.JSON(http.StatusOK, h.ctrl.Types())
-}
+func (h *InboundHandler) ListTypes(c *gin.Context) { c.JSON(http.StatusOK, h.ctrl.Types()) }
 
 func (h *InboundHandler) ListInbounds(c *gin.Context) {
 	views, err := h.ctrl.ListInboundViews()
@@ -57,29 +54,68 @@ func (h *InboundHandler) ListInbounds(c *gin.Context) {
 	c.JSON(http.StatusOK, views)
 }
 
-type createInboundBody struct {
-	Type   string         `json:"type" binding:"required"`
+type inboundBody struct {
+	Type   string         `json:"type"`
 	Tag    string         `json:"tag" binding:"required"`
 	Port   uint16         `json:"port" binding:"required"`
 	Params map[string]any `json:"params"`
 }
 
+func writeInboundCreateErr(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, inbound.ErrUnknownType), errors.Is(err, inbound.ErrInvalidTag):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, inbound.ErrTagExists), errors.Is(err, inbound.ErrPortInUse):
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case errors.Is(err, inbound.ErrNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	}
+}
+
 func (h *InboundHandler) CreateInbound(c *gin.Context) {
-	var b createInboundBody
-	if err := c.ShouldBindJSON(&b); err != nil {
+	var b inboundBody
+	if err := c.ShouldBindJSON(&b); err != nil || b.Type == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "type/tag/port required"})
 		return
 	}
 	in, err := h.ctrl.CreateInbound(b.Type, b.Tag, b.Port, b.Params)
 	if err != nil {
-		switch {
-		case errors.Is(err, inbound.ErrUnknownType), errors.Is(err, inbound.ErrInvalidTag):
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		case errors.Is(err, inbound.ErrTagExists), errors.Is(err, inbound.ErrPortInUse):
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		}
+		writeInboundCreateErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, in)
+}
+
+func (h *InboundHandler) UpdateInbound(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad id"})
+		return
+	}
+	var b inboundBody
+	if err := c.ShouldBindJSON(&b); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tag/port required"})
+		return
+	}
+	in, err := h.ctrl.UpdateInbound(id, b.Tag, b.Port, b.Params)
+	if err != nil {
+		writeInboundCreateErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, in)
+}
+
+func (h *InboundHandler) ResetKeys(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad id"})
+		return
+	}
+	in, err := h.ctrl.ResetInboundKeys(id)
+	if err != nil {
+		writeInboundCreateErr(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, in)
@@ -92,57 +128,11 @@ func (h *InboundHandler) DeleteInbound(c *gin.Context) {
 		return
 	}
 	if err := h.ctrl.DeleteInbound(id); err != nil {
-		writeInboundError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
-}
-
-func (h *InboundHandler) ListUsers(c *gin.Context) {
-	id, ok := parseID(c)
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "bad id"})
-		return
-	}
-	us, err := h.ctrl.ListUsers(id)
-	if err != nil {
+		if errors.Is(err, inbound.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, us)
-}
-
-type createUserBody struct {
-	Name string `json:"name" binding:"required"`
-}
-
-func (h *InboundHandler) CreateUser(c *gin.Context) {
-	id, ok := parseID(c)
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "bad id"})
-		return
-	}
-	var b createUserBody
-	if err := c.ShouldBindJSON(&b); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "name required"})
-		return
-	}
-	u, err := h.ctrl.CreateUser(id, b.Name)
-	if err != nil {
-		writeInboundError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, u)
-}
-
-func (h *InboundHandler) DeleteUser(c *gin.Context) {
-	id, ok := parseID(c)
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "bad id"})
-		return
-	}
-	if err := h.ctrl.DeleteUser(id); err != nil {
-		writeInboundError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -159,12 +149,4 @@ func (h *InboundHandler) Apply(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, st)
-}
-
-func writeInboundError(c *gin.Context, err error) {
-	if errors.Is(err, inbound.ErrNotFound) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-		return
-	}
-	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 }

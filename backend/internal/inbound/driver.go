@@ -20,6 +20,9 @@ type Driver interface {
 	NewCredential() string
 	BuildInbound(tag string, port uint16, settings string, users []Cred) (map[string]any, error)
 	PublicInfo(settings string) (map[string]any, error)
+	CredentialKind() string                                                // "uuid" | "password"
+	UpdateSettings(existing string, params map[string]any) (string, error) // keep secrets, apply params
+	ResetSecrets(existing string) (string, error)                          // new secrets, keep params
 }
 
 type TypeInfo struct {

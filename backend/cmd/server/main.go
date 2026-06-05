@@ -35,6 +35,7 @@ func main() {
 		log.Fatalf("seed defaults: %v", err)
 	}
 	inbHandler := handlers.NewInboundHandler(inbSvc, sbSvc)
+	userHandler := handlers.NewUserHandler(inbSvc)
 
 	r := gin.Default()
 
@@ -54,10 +55,15 @@ func main() {
 		authed.GET("/inbound-types", inbHandler.ListTypes)
 		authed.GET("/inbounds", inbHandler.ListInbounds)
 		authed.POST("/inbounds", inbHandler.CreateInbound)
+		authed.PUT("/inbounds/:id", inbHandler.UpdateInbound)
+		authed.POST("/inbounds/:id/reset-keys", inbHandler.ResetKeys)
 		authed.DELETE("/inbounds/:id", inbHandler.DeleteInbound)
-		authed.GET("/inbounds/:id/users", inbHandler.ListUsers)
-		authed.POST("/inbounds/:id/users", inbHandler.CreateUser)
-		authed.DELETE("/users/:id", inbHandler.DeleteUser)
+
+		authed.GET("/users", userHandler.List)
+		authed.POST("/users", userHandler.Create)
+		authed.PUT("/users/:id", userHandler.Update)
+		authed.POST("/users/:id/reset", userHandler.Reset)
+		authed.DELETE("/users/:id", userHandler.Delete)
 	}
 
 	web.Register(r)

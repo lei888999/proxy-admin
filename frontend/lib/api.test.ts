@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { login, getStatus, UnauthorizedError, startSingbox, getConfig, saveConfig, listInbounds, listInboundTypes, createInbound, applySingbox } from "./api";
+import { login, getStatus, UnauthorizedError, startSingbox, getConfig, saveConfig, listInbounds, listInboundTypes, createInbound, applySingbox, listUsers, createUser, updateInbound, resetInboundKeys } from "./api";
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -95,5 +95,29 @@ describe("api", () => {
   it("applySingbox throws backend error on failure", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "sing-box not installed" }), { status: 400 })));
     await expect(applySingbox()).rejects.toThrow(/not installed/);
+  });
+
+  it("listUsers + createUser", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ id: 1, name: "a", uuid: "u", password: "p", inboundIds: [], inboundTags: [] }]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 2 }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const us = await listUsers();
+    expect(us[0].password).toBe("p");
+    await createUser("bob", [1, 2]);
+    const [, init] = fetchMock.mock.calls[1];
+    expect(JSON.parse(init.body).inboundIds).toEqual([1, 2]);
+  });
+
+  it("updateInbound + resetInboundKeys", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1 }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await updateInbound(1, "t", 443, { handshake: "x" });
+    expect(fetchMock.mock.calls[0][1].method).toBe("PUT");
+    await resetInboundKeys(1);
+    expect(fetchMock.mock.calls[1][0]).toContain("/reset-keys");
   });
 });
