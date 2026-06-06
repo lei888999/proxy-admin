@@ -15,7 +15,8 @@ type fakeWriter struct {
 	calls int
 }
 
-func (f *fakeWriter) SaveConfig(c string) error { f.last = c; f.calls++; return nil }
+func (f *fakeWriter) SaveConfig(c string) error  { f.last = c; f.calls++; return nil }
+func (f *fakeWriter) ApplyConfig(c string) error { return f.SaveConfig(c) }
 
 func newTestService(t *testing.T) (*Service, *fakeWriter) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

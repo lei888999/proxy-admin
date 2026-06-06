@@ -3,6 +3,7 @@ package singbox
 import (
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 )
 
@@ -116,3 +117,29 @@ func (s *Service) Restart() (Status, error) {
 
 func (s *Service) GetConfig() (string, error) { return s.store.Get() }
 func (s *Service) SaveConfig(c string) error  { return s.store.Save(c) }
+
+// ApplyConfig persists the config and, if sing-box is running, validates it and
+// restarts to apply. Validation happens BEFORE stopping, so a bad config leaves
+// the running process untouched (returns *InvalidConfigError). When sing-box is
+// not running it is only persisted — the user starts it from the dashboard.
+func (s *Service) ApplyConfig(content string) error {
+	if err := s.store.Save(content); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.pm.Running() {
+		return nil
+	}
+	bin := s.resolveBin()
+	if bin == "" {
+		return nil
+	}
+	if out, err := s.env.Check(bin, s.store.Path()); err != nil {
+		return &InvalidConfigError{Output: strings.TrimSpace(out)}
+	}
+	if err := s.pm.Stop(); err != nil && err != ErrNotRunning {
+		return err
+	}
+	return s.pm.Start(bin, s.store.Path())
+}

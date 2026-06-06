@@ -16,6 +16,7 @@ type fakeEnv struct {
 	checkErr   error
 	spawnPid   int
 	spawnErr   error
+	spawnCount int
 	alive      map[int]bool
 	pgrep      bool
 	signals    []struct {
@@ -32,6 +33,10 @@ func (f *fakeEnv) FileExists(p string) bool             { return f.existing[p] }
 func (f *fakeEnv) RunVersion(string) (string, bool)     { return f.versionOut, f.versionOK }
 func (f *fakeEnv) Check(string, string) (string, error) { return f.checkOut, f.checkErr }
 func (f *fakeEnv) Spawn(string, string, string) (int, error) {
+	if f.spawnErr == nil {
+		f.spawnCount++
+		f.alive[f.spawnPid] = true // model the newly started process being alive
+	}
 	return f.spawnPid, f.spawnErr
 }
 func (f *fakeEnv) Alive(pid int) bool { return f.alive[pid] }
