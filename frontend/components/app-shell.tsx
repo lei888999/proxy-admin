@@ -22,6 +22,7 @@ const NAV_GROUPS: { heading: string; items: { href: string; label: string }[] }[
     items: [
       { href: "/dashboard", label: "概览" },
       { href: "/inbounds", label: "入站" },
+      { href: "/outbounds", label: "出站" },
       { href: "/users", label: "用户" },
     ],
   },
