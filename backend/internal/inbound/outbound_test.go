@@ -21,6 +21,12 @@ func TestOutboundCRUD(t *testing.T) {
 	if _, err := s.CreateOutbound("ftp", "x", "1.2.3.4", 1, "", ""); err != ErrInvalidType {
 		t.Fatalf("bad type err=%v, want ErrInvalidType", err)
 	}
+	if _, err := s.CreateOutbound("http", "x", "", 8080, "", ""); err != ErrInvalidOutbound {
+		t.Fatalf("empty server err=%v, want ErrInvalidOutbound", err)
+	}
+	if _, err := s.CreateOutbound("http", "x", "1.2.3.4", 0, "", ""); err != ErrInvalidOutbound {
+		t.Fatalf("zero port err=%v, want ErrInvalidOutbound", err)
+	}
 	views, _ := s.ListOutboundViews()
 	if len(views) != 1 || views[0].Tag != "proxyA" || views[0].Type != "socks5" {
 		t.Fatalf("views=%v", views)
