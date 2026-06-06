@@ -24,6 +24,9 @@ var (
 
 type ConfigWriter interface {
 	SaveConfig(content string) error
+	// ApplyConfig persists the config and, if sing-box is running, validates and
+	// restarts it so changes take effect without a manual "apply".
+	ApplyConfig(content string) error
 }
 
 type Service struct {
@@ -375,5 +378,7 @@ func (s *Service) Regenerate() error {
 	if err != nil {
 		return err
 	}
-	return s.writer.SaveConfig(content)
+	// ApplyConfig writes the config and auto-restarts a running sing-box (after
+	// validation) so edits take effect without a manual "应用并重启".
+	return s.writer.ApplyConfig(content)
 }

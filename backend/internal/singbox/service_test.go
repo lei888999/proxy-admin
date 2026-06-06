@@ -1,9 +1,74 @@
 package singbox
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 )
+
+func TestApplyConfigNotRunningOnlyPersists(t *testing.T) {
+	env := newFakeEnv()
+	env.binPath = "/usr/bin/sing-box"
+	svc := newService(t, env)
+	if err := svc.ApplyConfig(`{"log":{}}`); err != nil {
+		t.Fatalf("ApplyConfig: %v", err)
+	}
+	if svc.Status().Running {
+		t.Fatal("ApplyConfig must not start a stopped sing-box")
+	}
+	if env.spawnCount != 0 {
+		t.Fatalf("spawnCount=%d, want 0 (no start when stopped)", env.spawnCount)
+	}
+	if got, _ := svc.GetConfig(); got == "" {
+		t.Fatal("config was not persisted")
+	}
+}
+
+func TestApplyConfigRunningValidRestarts(t *testing.T) {
+	env := newFakeEnv()
+	env.binPath = "/usr/bin/sing-box"
+	env.spawnPid = 7
+	env.alive[7] = true
+	svc := newService(t, env)
+	_ = svc.SaveConfig(`{"log":{}}`)
+	if _, err := svc.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if env.spawnCount != 1 {
+		t.Fatalf("after start spawnCount=%d, want 1", env.spawnCount)
+	}
+	if err := svc.ApplyConfig(`{"log":{"level":"info"}}`); err != nil {
+		t.Fatalf("ApplyConfig: %v", err)
+	}
+	if env.spawnCount != 2 {
+		t.Fatalf("spawnCount=%d, want 2 (restart applied the new config)", env.spawnCount)
+	}
+}
+
+func TestApplyConfigRunningInvalidKeepsOldProcess(t *testing.T) {
+	env := newFakeEnv()
+	env.binPath = "/usr/bin/sing-box"
+	env.spawnPid = 7
+	env.alive[7] = true
+	svc := newService(t, env)
+	_ = svc.SaveConfig(`{"log":{}}`)
+	if _, err := svc.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	env.checkErr = errors.New("config error")
+	env.checkOut = "bad inbound"
+	err := svc.ApplyConfig(`{"log":{}}`)
+	var ice *InvalidConfigError
+	if !errors.As(err, &ice) {
+		t.Fatalf("err=%v, want *InvalidConfigError", err)
+	}
+	if env.spawnCount != 1 {
+		t.Fatalf("spawnCount=%d, want 1 (must NOT restart on invalid config)", env.spawnCount)
+	}
+	if !svc.Status().Running {
+		t.Fatal("a running sing-box must stay up when the new config is invalid")
+	}
+}
 
 func newService(t *testing.T, env *fakeEnv) *Service {
 	dir := t.TempDir()
