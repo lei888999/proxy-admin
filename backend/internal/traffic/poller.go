@@ -19,13 +19,17 @@ type Poller struct {
 	client   ConnectionsClient
 	store    TrafficStore
 	interval time.Duration
+	// running reports whether sing-box is up. When it isn't, the Clash API is
+	// down and we skip the tick instead of logging connection-refused noise.
+	// nil means "always poll" (used in tests).
+	running func() bool
 	// lastSeen tracks each live connection's cumulative bytes so we add only the
 	// per-tick delta. Entries for closed connections are pruned each tick.
 	lastSeen map[string]counters
 }
 
-func NewPoller(client ConnectionsClient, store TrafficStore, interval time.Duration) *Poller {
-	return &Poller{client: client, store: store, interval: interval, lastSeen: map[string]counters{}}
+func NewPoller(client ConnectionsClient, store TrafficStore, interval time.Duration, running func() bool) *Poller {
+	return &Poller{client: client, store: store, interval: interval, running: running, lastSeen: map[string]counters{}}
 }
 
 // parseUserID turns a connection's metadata.user ("u<id>") into a user ID.
@@ -99,6 +103,11 @@ func (p *Poller) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			// Skip while sing-box is down — its Clash API isn't listening, so a
+			// poll would only produce connection-refused log spam.
+			if p.running != nil && !p.running() {
+				continue
+			}
 			if err := p.pollOnce(ctx); err != nil {
 				log.Printf("traffic poll: %v", err)
 			}

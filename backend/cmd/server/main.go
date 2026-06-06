@@ -45,7 +45,7 @@ func main() {
 		log.Fatalf("api config: %v", err)
 	}
 	clashClient := traffic.NewClashClient(exp.ClashAddr, exp.ClashSecret)
-	poller := traffic.NewPoller(clashClient, inbSvc, 10*time.Second)
+	poller := traffic.NewPoller(clashClient, inbSvc, 10*time.Second, func() bool { return sbSvc.Status().Running })
 	go poller.Run(context.Background())
 
 	inbHandler := handlers.NewInboundHandler(inbSvc, sbSvc)
