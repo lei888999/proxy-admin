@@ -56,6 +56,10 @@ func TestGeneratePicksCredByProtocol(t *testing.T) {
 	if route["final"] != "direct" {
 		t.Fatalf("route.final=%v", route["final"])
 	}
+	// sing-box >= 1.12 requires a default domain resolver for dialing.
+	if dr, ok := route["default_domain_resolver"].(map[string]any); !ok || dr["server"] != "local" {
+		t.Fatalf("route.default_domain_resolver missing/wrong: %v", route["default_domain_resolver"])
+	}
 	rules := route["rules"].([]any)
 	if len(rules) != 1 {
 		t.Fatalf("want 1 route rule, got %d", len(rules))

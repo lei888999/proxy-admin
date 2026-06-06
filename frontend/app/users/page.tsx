@@ -176,10 +176,14 @@ export default function UsersPage() {
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">出站</Label>
               <Select
+                items={{
+                  direct: "直连",
+                  ...Object.fromEntries(outbounds.map((o) => [String(o.id), `${o.tag} · ${o.type}`])),
+                }}
                 value={form.outboundId == null ? "direct" : String(form.outboundId)}
                 onValueChange={(v) => setForm({ ...form, outboundId: v === "direct" ? null : Number(v) })}
               >
-                <SelectTrigger className="w-full"><SelectValue placeholder="直连" /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="direct">直连</SelectItem>
                   {outbounds.map((o) => (
