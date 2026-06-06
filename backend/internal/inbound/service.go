@@ -13,11 +13,13 @@ import (
 )
 
 var (
-	ErrTagExists   = errors.New("tag exists")
-	ErrNotFound    = errors.New("not found")
-	ErrInvalidTag  = errors.New("invalid tag")
-	ErrInvalidName = errors.New("invalid name")
-	ErrPortInUse   = errors.New("port in use")
+	ErrTagExists       = errors.New("tag exists")
+	ErrNotFound        = errors.New("not found")
+	ErrInvalidTag      = errors.New("invalid tag")
+	ErrInvalidName     = errors.New("invalid name")
+	ErrPortInUse       = errors.New("port in use")
+	ErrInvalidType     = errors.New("invalid type")
+	ErrInvalidOutbound = errors.New("invalid outbound")
 )
 
 type ConfigWriter interface {
@@ -355,11 +357,15 @@ func (s *Service) Regenerate() error {
 	if err != nil {
 		return err
 	}
+	obs, err := s.listOutbounds()
+	if err != nil {
+		return err
+	}
 	exp, err := s.APIConfig()
 	if err != nil {
 		return err
 	}
-	content, err := Generate(ins, exp)
+	content, err := Generate(ins, obs, exp)
 	if err != nil {
 		return err
 	}
