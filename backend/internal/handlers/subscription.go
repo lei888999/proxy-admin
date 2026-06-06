@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"net"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -22,11 +23,23 @@ func NewSubscriptionHandler(p SubscriptionProvider, serverHost string) *Subscrip
 	return &SubscriptionHandler{provider: p, serverHost: serverHost}
 }
 
+// hostOnly strips any :port from an authority so the subscription's proxy
+// "server" is the bare host. The proxy port comes from each inbound, not from
+// the panel's listen address (the request Host carries the panel port, e.g.
+// :8080, which would make clients dial the wrong port and time out).
+func hostOnly(authority string) string {
+	if h, _, err := net.SplitHostPort(authority); err == nil {
+		return h
+	}
+	return authority
+}
+
 func (h *SubscriptionHandler) Get(c *gin.Context) {
 	host := h.serverHost
 	if host == "" {
 		host = c.Request.Host
 	}
+	host = hostOnly(host)
 	body, err := h.provider.UserSubscription(c.Param("token"), host)
 	if err != nil {
 		if errors.Is(err, inbound.ErrNotFound) {
