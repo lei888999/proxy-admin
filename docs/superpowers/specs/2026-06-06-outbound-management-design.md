@@ -5,7 +5,7 @@
 
 ## Goal
 
-Let the admin define one or more upstream proxy **outbounds** (http or socks5, with optional auth) and route a given user's traffic through a chosen outbound — so egress hides the VPS's IP (and the client's real IP) behind an upstream proxy.
+Let the admin define one or more upstream proxy **outbounds** (http or socks5, with optional auth) and route a given user's traffic through a chosen outbound — so egress hides the VPS's IP (and the client's real IP) behind an upstream proxy. Proxied users' **DNS is resolved through their outbound** (not the VPS's local resolver) so it doesn't leak — automatically, with no extra configuration.
 
 ## Scope decisions (locked)
 
@@ -13,6 +13,7 @@ Let the admin define one or more upstream proxy **outbounds** (http or socks5, w
 - Outbound types: **http** and **socks5**, each with **optional** username/password. No http-over-TLS option this round.
 - Multiple outbounds supported.
 - Deleting an outbound that users reference: **delete it and null those users' assignment** (they fall back to direct), then regenerate.
+- DNS leak prevention: **automatic, zero-config**. The generator adds a `dns` block tying each proxied user's DNS to their outbound (via `detour`); no new UI or settings. Encrypted upstream resolver hardcoded to `tls://1.1.1.1`.
 
 ## Data model
 
@@ -66,6 +67,18 @@ Always includes `{type:"direct", tag:"direct"}`. For each configured outbound, a
 
 **sing-box field note:** the route rule matches the authenticated inbound user via `auth_user` (array of usernames), which equals our stable `u<id>` key — the same key used for traffic stats. The exact field name will be verified against the bundled sing-box version during implementation (`auth_user` is the current sing-box field; older builds used `user`).
 
+### `dns` block (DNS-leak prevention)
+
+Derived from the same `userOutbound` grouping (no extra input). Goal: a proxied user's domain resolution travels through their outbound, so neither the VPS's resolver nor a plaintext query leaks it.
+
+- **servers**:
+  - `{"tag":"local","address":"local"}` — the VPS's own resolver, used by direct users and as the fallback.
+  - For each outbound that has ≥1 assigned user: `{"tag":"dns-<tag>","address":"tls://1.1.1.1","detour":"<tag>"}` — an encrypted (DoT) resolver whose queries egress through that outbound.
+- **rules**: for each such outbound, `{"auth_user":["u<id>",…],"server":"dns-<tag>"}` (same grouping/sorting as the route rules).
+- **`"final":"local"`**, **`"strategy":"prefer_ipv4"`**.
+
+Because the proxied user's DNS is sent through the outbound's `detour`, resolution happens at/through the upstream proxy — no leak. Direct users resolve via `local`, which is correct (their egress is the VPS anyway). The resolver address `tls://1.1.1.1` is a hardcoded constant. If there are no outbounds with assigned users, the `dns` block contains only the `local` server with `final:"local"` (a harmless, sensible default).
+
 ## Service & API (`internal/inbound`)
 
 Outbound logic lives in a new `internal/inbound/outbound.go` on the existing `Service` (it already owns the DB, the user/inbound model, and `Regenerate`).
@@ -98,7 +111,7 @@ All inside the authed group. User create/update bodies gain `outboundId`.
 ## Testing (TDD, per repo conventions)
 
 **Backend**
-- `generate_test.go`: given one http outbound + one socks5 outbound and a user assigned to one of them, assert: both outbound objects present (socks5 → type `socks`), a `route.rules` entry `{auth_user:["u<id>"], outbound:<tag>}`, `route.final == "direct"`, and a user with no assignment produces no rule. Auth omitted when username/password empty.
+- `generate_test.go`: given one http outbound + one socks5 outbound and a user assigned to one of them, assert: both outbound objects present (socks5 → type `socks`), a `route.rules` entry `{auth_user:["u<id>"], outbound:<tag>}`, `route.final == "direct"`, and a user with no assignment produces no rule. Auth omitted when username/password empty. **DNS**: a `dns.servers` entry `{tag:"dns-<tag>", detour:"<tag>"}` exists for the assigned outbound, a `dns.rules` entry maps `auth_user:["u<id>"] → dns-<tag>`, and `dns.final == "local"`.
 - `outbound_test.go` (service): create/update/delete outbound; tag uniqueness; assigning `outboundId` to a user round-trips through `UserView`; deleting an outbound nulls referencing users and regenerates.
 - handler tests: outbound CRUD happy paths + validation (bad type → 400, duplicate tag → 409, unknown id → 404).
 
@@ -109,4 +122,4 @@ All inside the authed group. User create/update bodies gain `outboundId`.
 ## Verification layers
 1. `make test` (logic).
 2. `make build` + run the binary locally; eyeball the 出站 page and the user-form select.
-3. VPS: define a real upstream http/socks5 outbound, assign a user, 应用并重启, and confirm that user's egress IP is the upstream's (e.g. `curl ifconfig.me` through that user) while an unassigned user still egresses via the VPS.
+3. VPS: define a real upstream http/socks5 outbound, assign a user, 应用并重启, and confirm that user's egress IP is the upstream's (e.g. `curl ifconfig.me` through that user) while an unassigned user still egresses via the VPS. Confirm no DNS leak for the proxied user (e.g. a DNS-leak test site shows the upstream's resolver, not the VPS's).
