@@ -15,6 +15,7 @@ const deleteUserMock = vi.fn();
 vi.mock("@/lib/api", () => ({
   listUsers: () => listUsersMock(),
   listInbounds: () => listInboundsMock(),
+  listOutbounds: vi.fn().mockResolvedValue([{ id: 5, tag: "proxyA", type: "socks5", server: "1.2.3.4", port: 1080, username: "", password: "" }]),
   createUser: (...a: unknown[]) => createUserMock(...a),
   updateUser: vi.fn(),
   resetUserCreds: vi.fn(),
@@ -38,7 +39,7 @@ beforeEach(() => {
 describe("UsersPage", () => {
   it("列表显示用户的 UUID 与明文密码", async () => {
     listUsersMock.mockResolvedValue([
-      { id: 1, name: "alice", uuid: "the-uuid", password: "the-pass", subToken: "t", upBytes: 0, downBytes: 0, inboundIds: [1], inboundTags: ["v1"] },
+      { id: 1, name: "alice", uuid: "the-uuid", password: "the-pass", subToken: "t", upBytes: 0, downBytes: 0, outboundId: null, inboundIds: [1], inboundTags: ["v1"] },
     ]);
     render(<UsersPage />);
     await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
@@ -55,11 +56,12 @@ describe("UsersPage", () => {
     await waitFor(() => expect(createUserMock).toHaveBeenCalled());
     expect(createUserMock.mock.calls[0][0]).toBe("bob");
     expect(createUserMock.mock.calls[0][1]).toEqual([1]);
+    expect(createUserMock.mock.calls[0][2]).toBeNull();
   });
 
   it("删除用户需二次确认", async () => {
     listUsersMock.mockResolvedValue([
-      { id: 7, name: "alice", uuid: "u", password: "p", subToken: "t", upBytes: 0, downBytes: 0, inboundIds: [], inboundTags: [] },
+      { id: 7, name: "alice", uuid: "u", password: "p", subToken: "t", upBytes: 0, downBytes: 0, outboundId: null, inboundIds: [], inboundTags: [] },
     ]);
     render(<UsersPage />);
     await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
@@ -73,7 +75,7 @@ describe("UsersPage", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
     listUsersMock.mockResolvedValue([
-      { id: 1, name: "alice", uuid: "u", password: "p", subToken: "tok123", upBytes: 0, downBytes: 0, inboundIds: [], inboundTags: [] },
+      { id: 1, name: "alice", uuid: "u", password: "p", subToken: "tok123", upBytes: 0, downBytes: 0, outboundId: null, inboundIds: [], inboundTags: [] },
     ]);
     render(<UsersPage />);
     await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
@@ -83,7 +85,7 @@ describe("UsersPage", () => {
 
   it("显示用户上下行总量", async () => {
     listUsersMock.mockResolvedValue([
-      { id: 1, name: "alice", uuid: "u", password: "p", subToken: "t", upBytes: 1024, downBytes: 1048576, inboundIds: [], inboundTags: [] },
+      { id: 1, name: "alice", uuid: "u", password: "p", subToken: "t", upBytes: 1024, downBytes: 1048576, outboundId: null, inboundIds: [], inboundTags: [] },
     ]);
     render(<UsersPage />);
     await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
