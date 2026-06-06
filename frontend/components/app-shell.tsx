@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { getStatus, logout, UnauthorizedError } from "@/lib/api";
+import { logout, UnauthorizedError } from "@/lib/api";
+import { useStatus } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -61,11 +62,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // matching against the slash-free route keys used for active state + crumbs.
   const pathname = (usePathname() || "/").replace(/(.)\/$/, "$1");
 
+  const { error } = useStatus();
   useEffect(() => {
-    getStatus().catch((err) => {
-      if (err instanceof UnauthorizedError) router.push("/login");
-    });
-  }, [router]);
+    if (error instanceof UnauthorizedError) router.push("/login");
+  }, [error, router]);
 
   async function onLogout() {
     await logout();

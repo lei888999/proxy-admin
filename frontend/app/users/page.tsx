@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import {
-  listUsers, listInbounds, listOutbounds, createUser, updateUser, resetUserCreds, deleteUser, resetUserTraffic,
-  User, Inbound, Outbound,
+  createUser, updateUser, resetUserCreds, deleteUser, resetUserTraffic, User,
 } from "@/lib/api";
+import { useUsers, useInbounds, useOutbounds } from "@/lib/hooks";
 import { formatBytes, copyText } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { Modal } from "@/components/modal";
@@ -23,28 +23,19 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Copy, Pencil, KeyRound, RotateCcw, Trash2, Users as UsersIcon } from "lucide-react";
+import { Copy, Pencil, KeyRound, RotateCcw, Trash2, Users as UsersIcon, Plus } from "lucide-react";
 
 type Form = { id?: number; name: string; inboundIds: number[]; outboundId: number | null };
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [inbounds, setInbounds] = useState<Inbound[]>([]);
-  const [outbounds, setOutbounds] = useState<Outbound[]>([]);
+  const { data: users = [], mutate: refresh } = useUsers();
+  const { data: inbounds = [] } = useInbounds();
+  const { data: outbounds = [] } = useOutbounds();
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<User | null>(null);
   const [confirmResetTraffic, setConfirmResetTraffic] = useState<User | null>(null);
-
-  const refresh = useCallback(() => {
-    listUsers().then(setUsers).catch(() => setError("加载用户失败"));
-  }, []);
-  useEffect(() => {
-    refresh();
-    listInbounds().then(setInbounds).catch(() => {});
-    listOutbounds().then(setOutbounds).catch(() => {});
-  }, [refresh]);
 
   function toggle(id: number) {
     if (!form) return;
@@ -94,8 +85,8 @@ export default function UsersPage() {
     <AppShell>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-normal tracking-tight">用户</h1>
-        <Button className="rounded-full" onClick={() => { setError(""); setForm({ name: "", inboundIds: [], outboundId: null }); }}>
-          新建用户
+        <Button className="h-9 rounded-full px-5" onClick={() => { setError(""); setForm({ name: "", inboundIds: [], outboundId: null }); }}>
+          <Plus />新建用户
         </Button>
       </div>
 
@@ -123,16 +114,16 @@ export default function UsersPage() {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end gap-0.5">
-                    <Button variant="ghost" size="icon" aria-label="订阅" title="复制订阅链接" onClick={() => copySub(u.subToken)}>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="订阅" title="复制订阅链接" onClick={() => copySub(u.subToken)}>
                       <Copy />
                     </Button>
-                    <Button variant="ghost" size="icon" aria-label="编辑" title="编辑" onClick={() => { setError(""); setForm({ id: u.id, name: u.name, inboundIds: u.inboundIds, outboundId: u.outboundId }); }}>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="编辑" title="编辑" onClick={() => { setError(""); setForm({ id: u.id, name: u.name, inboundIds: u.inboundIds, outboundId: u.outboundId }); }}>
                       <Pencil />
                     </Button>
-                    <Button variant="ghost" size="icon" aria-label="重置凭证" title="重置凭证（轮换 UUID/密码/订阅 token）" onClick={() => onReset(u.id)}>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="重置凭证" title="重置凭证（轮换 UUID/密码/订阅 token）" onClick={() => onReset(u.id)}>
                       <KeyRound />
                     </Button>
-                    <Button variant="ghost" size="icon" aria-label="重置流量" title="重置累计流量" onClick={() => setConfirmResetTraffic(u)}>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="重置流量" title="重置累计流量" onClick={() => setConfirmResetTraffic(u)}>
                       <RotateCcw />
                     </Button>
                     <Button variant="ghost" size="icon" aria-label="删除" title="删除" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setConfirmDelete(u)}>

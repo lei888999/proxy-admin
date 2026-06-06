@@ -12,7 +12,7 @@
   "experimental": {
     "clash_api": {
       "external_controller": "127.0.0.1:9090",
-      "secret": "de23dfe5eaea0dce3776d827ac47e2ac"
+      "secret": "c7258043eb07221653cdf6f1ffc474df"
     }
   },
   "inbounds": [
@@ -28,9 +28,9 @@
             "server": "www.microsoft.com",
             "server_port": 443
           },
-          "private_key": "EGEOdeKi15oYbvgbkaTWCipNqeGsYMR-RJMltVrVGGI",
+          "private_key": "mHHhpSFJ1_Ezv7wFev62KApKS9008iExnoTCrTbvNHQ",
           "short_id": [
-            "be1b6b6b"
+            "0763ced8"
           ]
         },
         "server_name": "www.microsoft.com"
@@ -40,7 +40,7 @@
         {
           "flow": "xtls-rprx-vision",
           "name": "u1",
-          "uuid": "5aba774e-7b7a-42fc-ba52-bf802b6de9fd"
+          "uuid": "d1a19c3a-e8d5-4762-b652-923aecb4b329"
         }
       ]
     },
@@ -54,11 +54,11 @@
           "h3"
         ],
         "certificate": [
-          "-----BEGIN CERTIFICATE-----\nMIIBYTCCAQagAwIBAgIQAxwWMlg41sNbxEyNjmcdZzAKBggqhkjOPQQDAjATMREw\nDwYDVQQDEwhiaW5nLmNvbTAeFw0yNjA2MDYwNTI2NDVaFw0zNjA2MDYwNjI2NDVa\nMBMxETAPBgNVBAMTCGJpbmcuY29tMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE\n78X5OgtS8ToRmREDuv2mntgmF+Vf5nxiAeMZXyzKH5S8LAUU5d0flb43av2OBPfX\nm7PynHDvaL1hq0LKHRqEsaM8MDowDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoG\nCCsGAQUFBwMBMBMGA1UdEQQMMAqCCGJpbmcuY29tMAoGCCqGSM49BAMCA0kAMEYC\nIQDHzu5blCWXRRZT7FObQF9Al7QBjIDIqm7MLtbgysxQ8wIhAOzHUq49zP9Ueoz3\nK48vSZ3Zy4HMHMWqIZBQvOxf/Oz6\n-----END CERTIFICATE-----\n"
+          "-----BEGIN CERTIFICATE-----\nMIIBYTCCAQagAwIBAgIQKlWF+avmEdu3YxE3ABqsxjAKBggqhkjOPQQDAjATMREw\nDwYDVQQDEwhiaW5nLmNvbTAeFw0yNjA2MDYwNjI0MTZaFw0zNjA2MDYwNzI0MTZa\nMBMxETAPBgNVBAMTCGJpbmcuY29tMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE\nTmviK6vL5NR3cIAqv66j5Z7seoyey7CJqG7rwfFROV5RaxxagN/CteJF4Cx3Ohwy\ntW1LIHzhXo+HDTLRUYp4EaM8MDowDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoG\nCCsGAQUFBwMBMBMGA1UdEQQMMAqCCGJpbmcuY29tMAoGCCqGSM49BAMCA0kAMEYC\nIQCp3xqNlhJLewG10aFkKvi76s/9+k98GoMcQqyMf2KPBAIhAPO2HIiCLweyKsOh\n2tw6DtCdz+QNQxTUEB5Y/EXnW8mk\n-----END CERTIFICATE-----\n"
         ],
         "enabled": true,
         "key": [
-          "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEICAkEJsnD7qBoyOL8x2WcJ5C1T7F2VeExDamRbJW9bCToAoGCCqGSM49\nAwEHoUQDQgAE78X5OgtS8ToRmREDuv2mntgmF+Vf5nxiAeMZXyzKH5S8LAUU5d0f\nlb43av2OBPfXm7PynHDvaL1hq0LKHRqEsQ==\n-----END EC PRIVATE KEY-----\n"
+          "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEICCl7gP21o39+l9L6t4A/1KnlpuGvmj/zP/gTRGI428uoAoGCCqGSM49\nAwEHoUQDQgAETmviK6vL5NR3cIAqv66j5Z7seoyey7CJqG7rwfFROV5RaxxagN/C\nteJF4Cx3OhwytW1LIHzhXo+HDTLRUYp4EQ==\n-----END EC PRIVATE KEY-----\n"
         ],
         "server_name": "bing.com"
       },

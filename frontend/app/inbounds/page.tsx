@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import {
-  listInbounds, listInboundTypes, createInbound, updateInbound, resetInboundKeys, deleteInbound,
-  Inbound, InboundType,
+  createInbound, updateInbound, resetInboundKeys, deleteInbound, Inbound,
 } from "@/lib/api";
+import { useInbounds, useInboundTypes } from "@/lib/hooks";
 import { AppShell } from "@/components/app-shell";
 import { Modal } from "@/components/modal";
 import { EmptyState } from "@/components/empty-state";
@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { fieldLabel } from "@/lib/field-labels";
 import { copyText } from "@/lib/utils";
-import { ArrowDownToLine, Copy, Pencil, KeyRound, Trash2 } from "lucide-react";
+import { ArrowDownToLine, Copy, Pencil, KeyRound, Trash2, Plus } from "lucide-react";
 
 type FormState = {
   id?: number;
@@ -36,21 +36,13 @@ const emptyForm: FormState = {
 };
 
 export default function InboundsPage() {
-  const [inbounds, setInbounds] = useState<Inbound[]>([]);
-  const [types, setTypes] = useState<InboundType[]>([]);
+  const { data: inbounds = [], mutate: refresh } = useInbounds();
+  const { data: types = [] } = useInboundTypes();
   const [form, setForm] = useState<FormState | null>(null);
   const [confirmReset, setConfirmReset] = useState<Inbound | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Inbound | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-
-  const refresh = useCallback(() => {
-    listInbounds().then(setInbounds).catch(() => setError("加载入站失败"));
-  }, []);
-  useEffect(() => {
-    refresh();
-    listInboundTypes().then(setTypes).catch(() => {});
-  }, [refresh]);
 
   function openCreate() {
     setError("");
@@ -115,7 +107,7 @@ export default function InboundsPage() {
     <AppShell>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-normal tracking-tight">入站</h1>
-        <Button className="rounded-full" onClick={openCreate}>新建入站</Button>
+        <Button className="h-9 rounded-full px-5" onClick={openCreate}><Plus />新建入站</Button>
       </div>
 
       <div className="space-y-4">
@@ -127,10 +119,10 @@ export default function InboundsPage() {
                   {ib.tag} <span className="text-muted-foreground">· {ib.type} · :{ib.port}/{ib.network}</span>
                 </CardTitle>
                 <div className="flex items-center gap-0.5">
-                  <Button variant="ghost" size="icon" aria-label="编辑" title="编辑" onClick={() => openEdit(ib)}>
+                  <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="编辑" title="编辑" onClick={() => openEdit(ib)}>
                     <Pencil />
                   </Button>
-                  <Button variant="ghost" size="icon" aria-label="重置密钥" title="重置 reality 密钥 / 证书" onClick={() => setConfirmReset(ib)}>
+                  <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="重置密钥" title="重置 reality 密钥 / 证书" onClick={() => setConfirmReset(ib)}>
                     <KeyRound />
                   </Button>
                   <Button variant="ghost" size="icon" aria-label="删除" title="删除" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setConfirmDelete(ib)}>

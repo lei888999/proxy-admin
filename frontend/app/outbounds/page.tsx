@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { listOutbounds, createOutbound, updateOutbound, deleteOutbound, Outbound } from "@/lib/api";
+import { useState } from "react";
+import { createOutbound, updateOutbound, deleteOutbound, Outbound } from "@/lib/api";
+import { useOutbounds } from "@/lib/hooks";
 import { AppShell } from "@/components/app-shell";
 import { Modal } from "@/components/modal";
 import { EmptyState } from "@/components/empty-state";
@@ -11,22 +12,17 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Pencil, Trash2, ArrowUpFromLine } from "lucide-react";
+import { Pencil, Trash2, ArrowUpFromLine, Plus } from "lucide-react";
 
 type Form = { id?: number; type: string; tag: string; server: string; port: string; username: string; password: string };
 const empty: Form = { type: "socks5", tag: "", server: "", port: "1080", username: "", password: "" };
 
 export default function OutboundsPage() {
-  const [outbounds, setOutbounds] = useState<Outbound[]>([]);
+  const { data: outbounds = [], mutate: refresh } = useOutbounds();
   const [form, setForm] = useState<Form | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Outbound | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-
-  const refresh = useCallback(() => {
-    listOutbounds().then(setOutbounds).catch(() => setError("加载出站失败"));
-  }, []);
-  useEffect(() => { refresh(); }, [refresh]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -60,7 +56,7 @@ export default function OutboundsPage() {
     <AppShell>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-normal tracking-tight">出站</h1>
-        <Button className="rounded-full" onClick={() => { setError(""); setForm({ ...empty }); }}>新建出站</Button>
+        <Button className="h-9 rounded-full px-5" onClick={() => { setError(""); setForm({ ...empty }); }}><Plus />新建出站</Button>
       </div>
 
       <Card className="overflow-hidden rounded-lg p-0">
@@ -85,7 +81,7 @@ export default function OutboundsPage() {
                 <TableCell className="text-xs text-muted-foreground">{o.username || "—"}</TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end gap-0.5">
-                    <Button variant="ghost" size="icon" aria-label="编辑" onClick={() => { setError(""); setForm({ id: o.id, type: o.type, tag: o.tag, server: o.server, port: String(o.port), username: o.username, password: o.password }); }}>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="编辑" onClick={() => { setError(""); setForm({ id: o.id, type: o.type, tag: o.tag, server: o.server, port: String(o.port), username: o.username, password: o.password }); }}>
                       <Pencil />
                     </Button>
                     <Button variant="ghost" size="icon" aria-label="删除" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setConfirmDelete(o)}>

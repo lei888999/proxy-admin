@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { getStatus, startSingbox, stopSingbox, applySingbox, getLiveTraffic, listInbounds, listOutbounds, listUsers, LiveTraffic, UnauthorizedError, SingboxStatus } from "@/lib/api";
+import { useState } from "react";
+import { startSingbox, stopSingbox, applySingbox, SingboxStatus } from "@/lib/api";
+import { useStatus, useLiveTraffic, useInbounds, useOutbounds, useUsers } from "@/lib/hooks";
 import { formatBytes } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -11,47 +11,25 @@ import { StatCard } from "@/components/stat-card";
 import { ArrowUp, ArrowDown } from "lucide-react";
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const [status, setStatus] = useState<SingboxStatus | null>(null);
+  const { data: status, mutate: mutateStatus } = useStatus();
+  const { data: live = { up: 0, down: 0 } } = useLiveTraffic();
+  const { data: inbounds } = useInbounds();
+  const { data: outbounds } = useOutbounds();
+  const { data: users } = useUsers();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [live, setLive] = useState<LiveTraffic>({ up: 0, down: 0 });
-  const [counts, setCounts] = useState({ inbounds: 0, outbounds: 0, users: 0 });
 
-  const refresh = useCallback(() => {
-    getStatus()
-      .then(setStatus)
-      .catch((err) => {
-        if (err instanceof UnauthorizedError) router.push("/login");
-      });
-  }, [router]);
-
-  useEffect(refresh, [refresh]);
-  useEffect(() => {
-    Promise.all([
-      listInbounds().catch(() => []),
-      listOutbounds().catch(() => []),
-      listUsers().catch(() => []),
-    ]).then(([ins, outs, us]) =>
-      setCounts({ inbounds: ins.length, outbounds: outs.length, users: us.length })
-    );
-  }, []);
-  useEffect(() => {
-    let active = true;
-    const tick = () => getLiveTraffic().then((l) => active && setLive(l)).catch(() => {});
-    tick();
-    const id = setInterval(tick, 3000);
-    return () => {
-      active = false;
-      clearInterval(id);
-    };
-  }, []);
+  const counts = {
+    inbounds: inbounds?.length ?? 0,
+    outbounds: outbounds?.length ?? 0,
+    users: users?.length ?? 0,
+  };
 
   async function run(action: () => Promise<SingboxStatus>) {
     setBusy(true);
     setError("");
     try {
-      setStatus(await action());
+      mutateStatus(await action(), { revalidate: false });
     } catch (e) {
       setError(e instanceof Error ? e.message : "操作失败");
     } finally {
@@ -99,7 +77,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {status === null ? (
+            {!status ? (
               <p className="text-sm text-muted-foreground">加载中…</p>
             ) : (
               <>

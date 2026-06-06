@@ -1,17 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getConfig } from "@/lib/api";
+import { useConfig } from "@/lib/hooks";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function ConfigPage() {
-  const [content, setContent] = useState("");
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    getConfig().then(setContent).catch(() => setError("加载配置失败"));
-  }, []);
+  const { data: content = "", error } = useConfig();
 
   return (
     <AppShell>
@@ -29,7 +23,7 @@ export default function ConfigPage() {
             spellCheck={false}
             className="h-96 w-full rounded-lg border border-input bg-secondary p-3 font-mono text-sm text-foreground outline-none"
           />
-          {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+          {error && <p className="mt-3 text-sm text-destructive">加载配置失败</p>}
         </CardContent>
       </Card>
     </AppShell>
