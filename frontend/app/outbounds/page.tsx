@@ -108,7 +108,7 @@ export default function OutboundsPage() {
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">类型</Label>
-              <Select value={form.type} onValueChange={(v) => v && setForm({ ...form, type: v })}>
+              <Select items={{ socks5: "SOCKS5", http: "HTTP" }} value={form.type} onValueChange={(v) => v && setForm({ ...form, type: v })}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="socks5">SOCKS5</SelectItem>

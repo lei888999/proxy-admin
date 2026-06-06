@@ -99,6 +99,9 @@ func Generate(inbounds []models.Inbound, outbounds []models.Outbound, exp Experi
 		"route": map[string]any{
 			"rules": routeRules,
 			"final": "direct",
+			// sing-box >= 1.12 requires a resolver for outbounds that dial by
+			// domain; "local" resolves upstream/proxy server addresses.
+			"default_domain_resolver": map[string]any{"server": "local"},
 		},
 		"experimental": map[string]any{
 			"clash_api": map[string]any{
