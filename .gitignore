@@ -19,5 +19,7 @@ backend/internal/web/dist/*
 # misc
 .DS_Store
 
-# sing-box runtime dir (default SINGBOX_DIR when run from backend/)
+# sing-box runtime dir (default SINGBOX_DIR; ./singbox when run from repo root,
+# backend/singbox when run from backend/)
 backend/singbox/
+/singbox/
