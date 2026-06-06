@@ -69,15 +69,28 @@ func TestGeneratePicksCredByProtocol(t *testing.T) {
 	if dns["final"] != "local" {
 		t.Fatalf("dns.final=%v", dns["final"])
 	}
-	var foundDNS bool
+	if _, legacy := dns["strategy"]; legacy {
+		t.Fatal("dns.strategy is the deprecated legacy field; must not be emitted")
+	}
+	var foundLocal, foundDNS bool
 	for _, s := range dns["servers"].([]any) {
 		m := s.(map[string]any)
-		if m["tag"] == "dns-proxyA" && m["detour"] == "proxyA" {
+		if _, legacy := m["address"]; legacy {
+			t.Fatalf("dns server uses the legacy 'address' field (fatal on sing-box >= 1.12): %v", m)
+		}
+		if m["tag"] == "local" && m["type"] == "local" {
+			foundLocal = true
+		}
+		// New 1.12 DoT server format: type "tls" + server IP + detour.
+		if m["tag"] == "dns-proxyA" && m["type"] == "tls" && m["server"] == "1.1.1.1" && m["detour"] == "proxyA" {
 			foundDNS = true
 		}
 	}
+	if !foundLocal {
+		t.Fatal("local dns server (type:local) missing")
+	}
 	if !foundDNS {
-		t.Fatal("dns detour server for proxyA missing")
+		t.Fatal("dns detour server for proxyA missing or not in new tls format")
 	}
 	dnsRules := dns["rules"].([]any)
 	if len(dnsRules) != 1 || dnsRules[0].(map[string]any)["server"] != "dns-proxyA" {
