@@ -99,8 +99,56 @@ export interface User {
   subToken: string;
   upBytes: number;
   downBytes: number;
+  outboundId: number | null;
   inboundIds: number[];
   inboundTags: string[];
+}
+
+export interface Outbound {
+  id: number;
+  tag: string;
+  type: string;
+  server: string;
+  port: number;
+  username: string;
+  password: string;
+}
+
+export async function listOutbounds(): Promise<Outbound[]> {
+  const res = await request("/api/outbounds");
+  if (!res.ok) throw new Error("加载出站失败");
+  return res.json();
+}
+
+export async function createOutbound(o: Omit<Outbound, "id">): Promise<Outbound> {
+  const res = await request("/api/outbounds", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(o),
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new Error(b.error || "创建出站失败");
+  }
+  return res.json();
+}
+
+export async function updateOutbound(id: number, o: Omit<Outbound, "id">): Promise<Outbound> {
+  const res = await request(`/api/outbounds/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(o),
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new Error(b.error || "更新出站失败");
+  }
+  return res.json();
+}
+
+export async function deleteOutbound(id: number): Promise<void> {
+  const res = await request(`/api/outbounds/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("删除出站失败");
 }
 
 export async function listInbounds(): Promise<Inbound[]> {
@@ -144,11 +192,11 @@ export async function listUsers(): Promise<User[]> {
   return res.json();
 }
 
-export async function createUser(name: string, inboundIds: number[]): Promise<User> {
+export async function createUser(name: string, inboundIds: number[], outboundId: number | null): Promise<User> {
   const res = await request("/api/users", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, inboundIds }),
+    body: JSON.stringify({ name, inboundIds, outboundId }),
   });
   if (!res.ok) {
     const b = await res.json().catch(() => ({}));
@@ -157,11 +205,11 @@ export async function createUser(name: string, inboundIds: number[]): Promise<Us
   return res.json();
 }
 
-export async function updateUser(id: number, name: string, inboundIds: number[]): Promise<User> {
+export async function updateUser(id: number, name: string, inboundIds: number[], outboundId: number | null): Promise<User> {
   const res = await request(`/api/users/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, inboundIds }),
+    body: JSON.stringify({ name, inboundIds, outboundId }),
   });
   if (!res.ok) throw new Error("更新用户失败");
   return res.json();
