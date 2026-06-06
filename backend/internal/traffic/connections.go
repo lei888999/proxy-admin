@@ -4,8 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"time"
 )
+
+// authUserRe extracts the user key from a Clash-API connection's rule string,
+// e.g. `auth_user=u7 => route(proxyA)` -> "u7". sing-box does not populate
+// metadata.user, so the route rule is how we attribute a connection to a user.
+var authUserRe = regexp.MustCompile(`auth_user=\[?(u\d+)`)
+
+func userFromRule(rule string) string {
+	if m := authUserRe.FindStringSubmatch(rule); m != nil {
+		return m[1]
+	}
+	return ""
+}
 
 // Connection is one active Clash-API connection: cumulative bytes since it
 // opened, plus the authenticated user (the inbound user name we set to "u<id>").
@@ -33,13 +46,15 @@ func NewClashClient(addr, secret string) ConnectionsClient {
 	return &clashClient{addr: addr, secret: secret}
 }
 
-// clashConnections mirrors the subset of GET /connections we use. sing-box sets
-// metadata.user to the inbound user's name for authenticated connections.
+// clashConnections mirrors the subset of GET /connections we use. The user is
+// taken from metadata.user when present, otherwise parsed from the rule string
+// (sing-box leaves metadata.user empty but the rule carries `auth_user=u<id>`).
 type clashConnections struct {
 	Connections []struct {
 		ID       string `json:"id"`
 		Upload   int64  `json:"upload"`
 		Download int64  `json:"download"`
+		Rule     string `json:"rule"`
 		Metadata struct {
 			User string `json:"user"`
 		} `json:"metadata"`
@@ -67,7 +82,11 @@ func (c *clashClient) Connections(ctx context.Context) ([]Connection, error) {
 	}
 	out := make([]Connection, 0, len(body.Connections))
 	for _, cn := range body.Connections {
-		out = append(out, Connection{ID: cn.ID, User: cn.Metadata.User, Up: cn.Upload, Down: cn.Download})
+		user := cn.Metadata.User
+		if user == "" {
+			user = userFromRule(cn.Rule)
+		}
+		out = append(out, Connection{ID: cn.ID, User: user, Up: cn.Upload, Down: cn.Download})
 	}
 	return out, nil
 }

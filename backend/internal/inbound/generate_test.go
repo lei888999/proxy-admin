@@ -60,13 +60,23 @@ func TestGeneratePicksCredByProtocol(t *testing.T) {
 	if dr, ok := route["default_domain_resolver"].(map[string]any); !ok || dr["server"] != "local" {
 		t.Fatalf("route.default_domain_resolver missing/wrong: %v", route["default_domain_resolver"])
 	}
+	// One route rule per user, each targeting exactly one auth_user so the
+	// Clash-API rule string is unambiguous for traffic attribution.
 	rules := route["rules"].([]any)
-	if len(rules) != 1 {
-		t.Fatalf("want 1 route rule, got %d", len(rules))
+	userRoute := map[string]string{} // u<id> -> outbound
+	for _, r := range rules {
+		m := r.(map[string]any)
+		au := m["auth_user"].([]any)
+		if len(au) != 1 {
+			t.Fatalf("each route rule must target exactly one user, got %v", au)
+		}
+		userRoute[au[0].(string)] = m["outbound"].(string)
 	}
-	r0 := rules[0].(map[string]any)
-	if r0["outbound"] != "proxyA" || r0["auth_user"].([]any)[0] != "u7" {
-		t.Fatalf("route rule wrong: %v", r0)
+	if userRoute["u7"] != "proxyA" {
+		t.Fatalf("u7 should route to proxyA: %v", userRoute)
+	}
+	if userRoute["u8"] != "direct" {
+		t.Fatalf("u8 (no outbound) should route to direct: %v", userRoute)
 	}
 
 	dns := cfg["dns"].(map[string]any)

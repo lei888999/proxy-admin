@@ -20,7 +20,8 @@ func Generate(inbounds []models.Inbound, outbounds []models.Outbound, exp Experi
 	}
 
 	ins := []map[string]any{}
-	userOutbound := map[uint]string{} // user id -> outbound tag
+	userOutbound := map[uint]string{} // user id -> outbound tag (assigned only)
+	allUsers := map[uint]struct{}{}   // every user that appears on an inbound
 	for _, in := range inbounds {
 		d, ok := Get(in.Type)
 		if !ok {
@@ -34,6 +35,7 @@ func Generate(inbounds []models.Inbound, outbounds []models.Outbound, exp Experi
 				c = u.Password
 			}
 			creds = append(creds, Cred{Name: fmt.Sprintf("u%d", u.ID), Credential: c})
+			allUsers[u.ID] = struct{}{}
 			if u.OutboundID != nil {
 				if tag, ok := tagByID[*u.OutboundID]; ok {
 					userOutbound[u.ID] = tag
@@ -64,6 +66,30 @@ func Generate(inbounds []models.Inbound, outbounds []models.Outbound, exp Experi
 		obs = append(obs, ob)
 	}
 
+	// One route rule per user so each Clash-API connection's rule string carries
+	// exactly one `auth_user=u<id>` — the traffic poller parses that to attribute
+	// usage (sing-box's clash_api does not expose the user in connection metadata).
+	// Unassigned users route to "direct".
+	userIDs := make([]uint, 0, len(allUsers))
+	for uid := range allUsers {
+		userIDs = append(userIDs, uid)
+	}
+	sort.Slice(userIDs, func(i, j int) bool { return userIDs[i] < userIDs[j] })
+	routeRules := []map[string]any{}
+	for _, uid := range userIDs {
+		tag := userOutbound[uid]
+		if tag == "" {
+			tag = "direct"
+		}
+		routeRules = append(routeRules, map[string]any{
+			"auth_user": []string{fmt.Sprintf("u%d", uid)},
+			"outbound":  tag,
+		})
+	}
+
+	// DNS detour servers/rules, grouped by outbound (assigned users only) so a
+	// proxied user's DNS egresses through their outbound. sing-box >= 1.12 typed
+	// server format ({address:...} is deprecated and fatal).
 	usersByTag := map[string][]string{}
 	for uid, tag := range userOutbound {
 		usersByTag[tag] = append(usersByTag[tag], fmt.Sprintf("u%d", uid))
@@ -73,16 +99,11 @@ func Generate(inbounds []models.Inbound, outbounds []models.Outbound, exp Experi
 		tags = append(tags, tag)
 	}
 	sort.Strings(tags)
-
-	// sing-box >= 1.12 DNS server formats (typed). The legacy {address: "..."}
-	// form is deprecated and fatal on >= 1.12.
-	routeRules := []map[string]any{}
 	dnsServers := []map[string]any{{"type": "local", "tag": "local"}}
 	dnsRules := []map[string]any{}
 	for _, tag := range tags {
 		users := usersByTag[tag]
 		sort.Strings(users)
-		routeRules = append(routeRules, map[string]any{"auth_user": users, "outbound": tag})
 		dnsServers = append(dnsServers, map[string]any{"type": "tls", "tag": "dns-" + tag, "server": dnsResolverServer, "detour": tag})
 		dnsRules = append(dnsRules, map[string]any{"auth_user": users, "server": "dns-" + tag})
 	}
