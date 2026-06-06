@@ -12,14 +12,14 @@ import (
 
 func TestUserSubscription(t *testing.T) {
 	db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	db.AutoMigrate(&models.Inbound{}, &models.User{}, &models.Meta{})
+	db.AutoMigrate(&models.Inbound{}, &models.User{}, &models.Meta{}, &models.Outbound{})
 	s := NewService(db, &fakeWriter{})
 	if _, err := s.CreateInbound("vless-reality", "v1", 8443, nil); err != nil {
 		t.Fatalf("inbound: %v", err)
 	}
 	var in models.Inbound
 	db.First(&in, "tag = ?", "v1")
-	u, _ := s.CreateUser("alice", []uint{in.ID})
+	u, _ := s.CreateUser("alice", []uint{in.ID}, nil)
 
 	yaml, err := s.UserSubscription(u.SubToken, "vps.example.com")
 	if err != nil {

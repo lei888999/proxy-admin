@@ -54,7 +54,7 @@ func TestCreateUserWithInbounds(t *testing.T) {
 	s, w := newTestService(t)
 	v, _ := s.CreateInbound("vless-reality", "v1", 8443, nil)
 	h, _ := s.CreateInbound("hysteria2", "h1", 443, nil)
-	u, err := s.CreateUser("alice", []uint{v.ID, h.ID})
+	u, err := s.CreateUser("alice", []uint{v.ID, h.ID}, nil)
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
@@ -74,8 +74,8 @@ func TestUpdateUserReplacesInbounds(t *testing.T) {
 	s, _ := newTestService(t)
 	v, _ := s.CreateInbound("vless-reality", "v1", 8443, nil)
 	h, _ := s.CreateInbound("hysteria2", "h1", 443, nil)
-	u, _ := s.CreateUser("a", []uint{v.ID})
-	if _, err := s.UpdateUser(u.ID, "a2", []uint{h.ID}); err != nil {
+	u, _ := s.CreateUser("a", []uint{v.ID}, nil)
+	if _, err := s.UpdateUser(u.ID, "a2", []uint{h.ID}, nil); err != nil {
 		t.Fatal(err)
 	}
 	views, _ := s.ListUserViews()
@@ -87,7 +87,7 @@ func TestUpdateUserReplacesInbounds(t *testing.T) {
 func TestDeleteUserKeepsInbound(t *testing.T) {
 	s, _ := newTestService(t)
 	v, _ := s.CreateInbound("vless-reality", "v1", 8443, nil)
-	u, _ := s.CreateUser("a", []uint{v.ID})
+	u, _ := s.CreateUser("a", []uint{v.ID}, nil)
 	if err := s.DeleteUser(u.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestDeleteUserKeepsInbound(t *testing.T) {
 
 func TestResetUserCreds(t *testing.T) {
 	s, _ := newTestService(t)
-	u, _ := s.CreateUser("a", nil)
+	u, _ := s.CreateUser("a", nil, nil)
 	old := u.UUID
 	r, _ := s.ResetUserCreds(u.ID)
 	if r.UUID == old {
@@ -156,7 +156,7 @@ func TestResetInboundKeysChangesKey(t *testing.T) {
 
 func TestCreateUserAssignsSubToken(t *testing.T) {
 	s, _ := newTestService(t)
-	u, err := s.CreateUser("alice", nil)
+	u, err := s.CreateUser("alice", nil, nil)
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestBackfillUserTokens(t *testing.T) {
 
 func TestAddAndResetTraffic(t *testing.T) {
 	s, _ := newTestService(t)
-	u, _ := s.CreateUser("alice", nil)
+	u, _ := s.CreateUser("alice", nil, nil)
 	if err := s.AddTraffic(u.ID, 100, 200); err != nil {
 		t.Fatalf("AddTraffic: %v", err)
 	}
@@ -214,7 +214,7 @@ func TestAddAndResetTraffic(t *testing.T) {
 
 func TestListUserViewsExposesTraffic(t *testing.T) {
 	s, _ := newTestService(t)
-	u, _ := s.CreateUser("alice", nil)
+	u, _ := s.CreateUser("alice", nil, nil)
 	if err := s.AddTraffic(u.ID, 1024, 2048); err != nil {
 		t.Fatalf("AddTraffic: %v", err)
 	}
@@ -224,5 +224,29 @@ func TestListUserViewsExposesTraffic(t *testing.T) {
 	}
 	if len(views) != 1 || views[0].UpBytes != 1024 || views[0].DownBytes != 2048 {
 		t.Fatalf("view traffic not exposed: %+v", views)
+	}
+}
+
+func TestUserOutboundAssignment(t *testing.T) {
+	s, _ := newTestService(t)
+	o, _ := s.CreateOutbound("http", "proxyA", "1.2.3.4", 8080, "", "")
+	u, err := s.CreateUser("alice", nil, &o.ID)
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	views, _ := s.ListUserViews()
+	if len(views) != 1 || views[0].OutboundID == nil || *views[0].OutboundID != o.ID {
+		t.Fatalf("view outbound not set: %+v", views)
+	}
+	if _, err := s.UpdateUser(u.ID, "alice", nil, nil); err != nil {
+		t.Fatalf("UpdateUser: %v", err)
+	}
+	views, _ = s.ListUserViews()
+	if views[0].OutboundID != nil {
+		t.Fatalf("outbound should be cleared, got %v", views[0].OutboundID)
+	}
+	bad := uint(9999)
+	if _, err := s.UpdateUser(u.ID, "alice", nil, &bad); err != ErrInvalidOutbound {
+		t.Fatalf("bad outbound err=%v, want ErrInvalidOutbound", err)
 	}
 }
