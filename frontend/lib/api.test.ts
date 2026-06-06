@@ -105,7 +105,7 @@ describe("api", () => {
     vi.stubGlobal("fetch", fetchMock);
     const us = await listUsers();
     expect(us[0].password).toBe("p");
-    await createUser("bob", [1, 2]);
+    await createUser("bob", [1, 2], null);
     const [, init] = fetchMock.mock.calls[1];
     expect(JSON.parse(init.body).inboundIds).toEqual([1, 2]);
   });

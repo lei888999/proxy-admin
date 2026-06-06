@@ -13,7 +13,7 @@ func Init(dbPath, defaultUser, defaultPass string) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.AutoMigrate(&models.Admin{}, &models.Inbound{}, &models.User{}, &models.Meta{}); err != nil {
+	if err := db.AutoMigrate(&models.Admin{}, &models.Inbound{}, &models.User{}, &models.Meta{}, &models.Outbound{}); err != nil {
 		return nil, err
 	}
 	if err := seedDefaultAdmin(db, defaultUser, defaultPass); err != nil {

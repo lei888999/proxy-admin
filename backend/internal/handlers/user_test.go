@@ -20,11 +20,11 @@ type fakeUserCtrl struct {
 }
 
 func (f *fakeUserCtrl) ListUserViews() ([]inbound.UserView, error) { return f.views, nil }
-func (f *fakeUserCtrl) CreateUser(name string, ids []uint) (models.User, error) {
+func (f *fakeUserCtrl) CreateUser(name string, ids []uint, outboundID *uint) (models.User, error) {
 	f.lastName, f.lastIDs = name, ids
 	return models.User{ID: 1, Name: name, UUID: "u", Password: "p"}, f.createErr
 }
-func (f *fakeUserCtrl) UpdateUser(id uint, name string, ids []uint) (models.User, error) {
+func (f *fakeUserCtrl) UpdateUser(id uint, name string, ids []uint, outboundID *uint) (models.User, error) {
 	return models.User{ID: id, Name: name}, nil
 }
 func (f *fakeUserCtrl) ResetUserCreds(id uint) (models.User, error) {

@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  listUsers, listInbounds, createUser, updateUser, resetUserCreds, deleteUser, resetUserTraffic,
-  User, Inbound,
+  listUsers, listInbounds, listOutbounds, createUser, updateUser, resetUserCreds, deleteUser, resetUserTraffic,
+  User, Inbound, Outbound,
 } from "@/lib/api";
 import { formatBytes, copyText } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
@@ -20,13 +20,15 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Copy, Pencil, KeyRound, RotateCcw, Trash2 } from "lucide-react";
 
-type Form = { id?: number; name: string; inboundIds: number[] };
+type Form = { id?: number; name: string; inboundIds: number[]; outboundId: number | null };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [inbounds, setInbounds] = useState<Inbound[]>([]);
+  const [outbounds, setOutbounds] = useState<Outbound[]>([]);
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -39,6 +41,7 @@ export default function UsersPage() {
   useEffect(() => {
     refresh();
     listInbounds().then(setInbounds).catch(() => {});
+    listOutbounds().then(setOutbounds).catch(() => {});
   }, [refresh]);
 
   function toggle(id: number) {
@@ -53,8 +56,8 @@ export default function UsersPage() {
     setBusy(true);
     setError("");
     try {
-      if (form.id) await updateUser(form.id, form.name, form.inboundIds);
-      else await createUser(form.name, form.inboundIds);
+      if (form.id) await updateUser(form.id, form.name, form.inboundIds, form.outboundId);
+      else await createUser(form.name, form.inboundIds, form.outboundId);
       setForm(null);
       refresh();
     } catch (err) {
@@ -89,7 +92,7 @@ export default function UsersPage() {
     <AppShell>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-normal tracking-tight">用户</h1>
-        <Button className="rounded-full" onClick={() => { setError(""); setForm({ name: "", inboundIds: [] }); }}>
+        <Button className="rounded-full" onClick={() => { setError(""); setForm({ name: "", inboundIds: [], outboundId: null }); }}>
           新建用户
         </Button>
       </div>
@@ -121,7 +124,7 @@ export default function UsersPage() {
                     <Button variant="ghost" size="icon" aria-label="订阅" title="复制订阅链接" onClick={() => copySub(u.subToken)}>
                       <Copy />
                     </Button>
-                    <Button variant="ghost" size="icon" aria-label="编辑" title="编辑" onClick={() => { setError(""); setForm({ id: u.id, name: u.name, inboundIds: u.inboundIds }); }}>
+                    <Button variant="ghost" size="icon" aria-label="编辑" title="编辑" onClick={() => { setError(""); setForm({ id: u.id, name: u.name, inboundIds: u.inboundIds, outboundId: u.outboundId }); }}>
                       <Pencil />
                     </Button>
                     <Button variant="ghost" size="icon" aria-label="重置凭证" title="重置凭证（轮换 UUID/密码/订阅 token）" onClick={() => onReset(u.id)}>
@@ -169,6 +172,21 @@ export default function UsersPage() {
                 ))}
                 {inbounds.length === 0 && <p className="text-xs text-muted-foreground">还没有入站</p>}
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">出站</Label>
+              <Select
+                value={form.outboundId == null ? "direct" : String(form.outboundId)}
+                onValueChange={(v) => setForm({ ...form, outboundId: v === "direct" ? null : Number(v) })}
+              >
+                <SelectTrigger className="w-full"><SelectValue placeholder="直连" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="direct">直连</SelectItem>
+                  {outbounds.map((o) => (
+                    <SelectItem key={o.id} value={String(o.id)}>{o.tag} · {o.type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex justify-end gap-3 pt-2">

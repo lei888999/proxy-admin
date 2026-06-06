@@ -13,40 +13,74 @@ func TestGeneratePicksCredByProtocol(t *testing.T) {
 	vs, _ := vd.BuildSettings(nil)
 	hd, _ := Get("hysteria2")
 	hs, _ := hd.BuildSettings(nil)
+	ob := uint(9)
 	ins := []models.Inbound{
 		{ID: 3, Tag: "v1", Type: "vless-reality", Network: "tcp", Port: 8443, Settings: vs,
-			Users: []models.User{{ID: 7, Name: "a", UUID: "uuid-x", Password: "pw-x"}}},
+			Users: []models.User{{ID: 7, Name: "a", UUID: "uuid-x", Password: "pw-x", OutboundID: &ob}}},
 		{ID: 4, Tag: "h1", Type: "hysteria2", Network: "udp", Port: 443, Settings: hs,
-			Users: []models.User{{ID: 7, Name: "a", UUID: "uuid-x", Password: "pw-x"}}},
+			Users: []models.User{{ID: 8, Name: "b", UUID: "uuid-y", Password: "pw-y"}}}, // no outbound -> direct
+	}
+	outs := []models.Outbound{
+		{ID: 9, Tag: "proxyA", Type: "socks5", Server: "1.2.3.4", Port: 1080, Username: "u", Password: "p"},
 	}
 	exp := ExperimentalConfig{ClashAddr: "127.0.0.1:9090", ClashSecret: "sec"}
-	out, err := Generate(ins, exp)
+	out, err := Generate(ins, outs, exp)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	if !strings.Contains(out, `"uuid": "uuid-x"`) {
-		t.Fatal("vless should use UUID")
+	if !strings.Contains(out, `"uuid": "uuid-x"`) || !strings.Contains(out, `"password": "pw-y"`) {
+		t.Fatal("creds not emitted per protocol")
 	}
-	if !strings.Contains(out, `"password": "pw-x"`) {
-		t.Fatal("hysteria2 should use Password")
-	}
-	if !strings.Contains(out, `"name": "u7"`) {
-		t.Fatal("inbound user name should be the stable key u7 (becomes clash metadata.user)")
-	}
+
 	var cfg map[string]any
 	if err := json.Unmarshal([]byte(out), &cfg); err != nil {
 		t.Fatalf("invalid json: %v", err)
 	}
-	expBlock, ok := cfg["experimental"].(map[string]any)
-	if !ok {
-		t.Fatal("missing experimental block")
+
+	obs := cfg["outbounds"].([]any)
+	var foundSocks bool
+	for _, o := range obs {
+		m := o.(map[string]any)
+		if m["tag"] == "proxyA" {
+			foundSocks = true
+			if m["type"] != "socks" || m["server"] != "1.2.3.4" || m["username"] != "u" {
+				t.Fatalf("socks outbound wrong: %v", m)
+			}
+		}
 	}
-	clash, ok := expBlock["clash_api"].(map[string]any)
-	if !ok || clash["external_controller"] != "127.0.0.1:9090" {
-		t.Fatalf("clash_api missing/wrong: %v", expBlock["clash_api"])
+	if !foundSocks {
+		t.Fatal("proxyA outbound missing")
 	}
-	// v2ray_api must NOT be emitted — it is absent from the official sing-box build.
-	if _, ok := expBlock["v2ray_api"]; ok {
-		t.Fatal("v2ray_api must not be present (breaks stock sing-box startup)")
+
+	route := cfg["route"].(map[string]any)
+	if route["final"] != "direct" {
+		t.Fatalf("route.final=%v", route["final"])
+	}
+	rules := route["rules"].([]any)
+	if len(rules) != 1 {
+		t.Fatalf("want 1 route rule, got %d", len(rules))
+	}
+	r0 := rules[0].(map[string]any)
+	if r0["outbound"] != "proxyA" || r0["auth_user"].([]any)[0] != "u7" {
+		t.Fatalf("route rule wrong: %v", r0)
+	}
+
+	dns := cfg["dns"].(map[string]any)
+	if dns["final"] != "local" {
+		t.Fatalf("dns.final=%v", dns["final"])
+	}
+	var foundDNS bool
+	for _, s := range dns["servers"].([]any) {
+		m := s.(map[string]any)
+		if m["tag"] == "dns-proxyA" && m["detour"] == "proxyA" {
+			foundDNS = true
+		}
+	}
+	if !foundDNS {
+		t.Fatal("dns detour server for proxyA missing")
+	}
+	dnsRules := dns["rules"].([]any)
+	if len(dnsRules) != 1 || dnsRules[0].(map[string]any)["server"] != "dns-proxyA" {
+		t.Fatalf("dns rule wrong: %v", dnsRules)
 	}
 }

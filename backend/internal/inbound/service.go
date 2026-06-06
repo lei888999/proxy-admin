@@ -13,11 +13,13 @@ import (
 )
 
 var (
-	ErrTagExists   = errors.New("tag exists")
-	ErrNotFound    = errors.New("not found")
-	ErrInvalidTag  = errors.New("invalid tag")
-	ErrInvalidName = errors.New("invalid name")
-	ErrPortInUse   = errors.New("port in use")
+	ErrTagExists       = errors.New("tag exists")
+	ErrNotFound        = errors.New("not found")
+	ErrInvalidTag      = errors.New("invalid tag")
+	ErrInvalidName     = errors.New("invalid name")
+	ErrPortInUse       = errors.New("port in use")
+	ErrInvalidType     = errors.New("invalid type")
+	ErrInvalidOutbound = errors.New("invalid outbound")
 )
 
 type ConfigWriter interface {
@@ -186,6 +188,7 @@ type UserView struct {
 	SubToken    string   `json:"subToken"`
 	UpBytes     int64    `json:"upBytes"`
 	DownBytes   int64    `json:"downBytes"`
+	OutboundID  *uint    `json:"outboundId"`
 	InboundIDs  []uint   `json:"inboundIds"`
 	InboundTags []string `json:"inboundTags"`
 }
@@ -198,7 +201,7 @@ func (s *Service) ListUserViews() ([]UserView, error) {
 	views := make([]UserView, 0, len(us))
 	for _, u := range us {
 		v := UserView{ID: u.ID, Name: u.Name, UUID: u.UUID, Password: u.Password, SubToken: u.SubToken,
-			UpBytes: u.UpBytes, DownBytes: u.DownBytes, InboundIDs: []uint{}, InboundTags: []string{}}
+			UpBytes: u.UpBytes, DownBytes: u.DownBytes, OutboundID: u.OutboundID, InboundIDs: []uint{}, InboundTags: []string{}}
 		for _, in := range u.Inbounds {
 			v.InboundIDs = append(v.InboundIDs, in.ID)
 			v.InboundTags = append(v.InboundTags, in.Tag)
@@ -218,12 +221,15 @@ func (s *Service) setUserInbounds(u *models.User, inboundIDs []uint) error {
 	return s.db.Model(u).Association("Inbounds").Replace(ins)
 }
 
-func (s *Service) CreateUser(name string, inboundIDs []uint) (models.User, error) {
+func (s *Service) CreateUser(name string, inboundIDs []uint, outboundID *uint) (models.User, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return models.User{}, ErrInvalidName
 	}
-	u := models.User{Name: name, UUID: genUUID(), Password: genPassword(), SubToken: genToken()}
+	if err := s.validateOutbound(outboundID); err != nil {
+		return models.User{}, err
+	}
+	u := models.User{Name: name, UUID: genUUID(), Password: genPassword(), SubToken: genToken(), OutboundID: outboundID}
 	if err := s.db.Create(&u).Error; err != nil {
 		return models.User{}, err
 	}
@@ -233,7 +239,7 @@ func (s *Service) CreateUser(name string, inboundIDs []uint) (models.User, error
 	return u, s.Regenerate()
 }
 
-func (s *Service) UpdateUser(id uint, name string, inboundIDs []uint) (models.User, error) {
+func (s *Service) UpdateUser(id uint, name string, inboundIDs []uint, outboundID *uint) (models.User, error) {
 	var u models.User
 	if err := s.db.First(&u, id).Error; err != nil {
 		return models.User{}, ErrNotFound
@@ -242,8 +248,10 @@ func (s *Service) UpdateUser(id uint, name string, inboundIDs []uint) (models.Us
 	if name == "" {
 		return models.User{}, ErrInvalidName
 	}
-	u.Name = name
-	if err := s.db.Save(&u).Error; err != nil {
+	if err := s.validateOutbound(outboundID); err != nil {
+		return models.User{}, err
+	}
+	if err := s.db.Model(&u).Select("name", "outbound_id").Updates(map[string]any{"name": name, "outbound_id": outboundID}).Error; err != nil {
 		return models.User{}, err
 	}
 	if err := s.setUserInbounds(&u, inboundIDs); err != nil {
@@ -355,11 +363,15 @@ func (s *Service) Regenerate() error {
 	if err != nil {
 		return err
 	}
+	obs, err := s.listOutbounds()
+	if err != nil {
+		return err
+	}
 	exp, err := s.APIConfig()
 	if err != nil {
 		return err
 	}
-	content, err := Generate(ins, exp)
+	content, err := Generate(ins, obs, exp)
 	if err != nil {
 		return err
 	}

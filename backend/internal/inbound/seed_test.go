@@ -11,7 +11,7 @@ import (
 
 func TestSeedDefaultsCreatesTwo(t *testing.T) {
 	db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	db.AutoMigrate(&models.Inbound{}, &models.User{}, &models.Meta{})
+	db.AutoMigrate(&models.Inbound{}, &models.User{}, &models.Meta{}, &models.Outbound{})
 	s := NewService(db, &fakeWriter{})
 	if err := SeedDefaults(s); err != nil {
 		t.Fatalf("SeedDefaults: %v", err)

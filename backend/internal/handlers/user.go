@@ -12,8 +12,8 @@ import (
 
 type UserController interface {
 	ListUserViews() ([]inbound.UserView, error)
-	CreateUser(name string, inboundIDs []uint) (models.User, error)
-	UpdateUser(id uint, name string, inboundIDs []uint) (models.User, error)
+	CreateUser(name string, inboundIDs []uint, outboundID *uint) (models.User, error)
+	UpdateUser(id uint, name string, inboundIDs []uint, outboundID *uint) (models.User, error)
 	ResetUserCreds(id uint) (models.User, error)
 	DeleteUser(id uint) error
 	ResetUserTraffic(id uint) error
@@ -35,12 +35,13 @@ func (h *UserHandler) List(c *gin.Context) {
 type userBody struct {
 	Name       string `json:"name" binding:"required"`
 	InboundIDs []uint `json:"inboundIds"`
+	OutboundID *uint  `json:"outboundId"`
 }
 
 func writeUserErr(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, inbound.ErrInvalidName):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid name"})
+	case errors.Is(err, inbound.ErrInvalidName), errors.Is(err, inbound.ErrInvalidOutbound):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, inbound.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 	default:
@@ -54,7 +55,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "name required"})
 		return
 	}
-	u, err := h.ctrl.CreateUser(b.Name, b.InboundIDs)
+	u, err := h.ctrl.CreateUser(b.Name, b.InboundIDs, b.OutboundID)
 	if err != nil {
 		writeUserErr(c, err)
 		return
@@ -73,7 +74,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "name required"})
 		return
 	}
-	u, err := h.ctrl.UpdateUser(id, b.Name, b.InboundIDs)
+	u, err := h.ctrl.UpdateUser(id, b.Name, b.InboundIDs, b.OutboundID)
 	if err != nil {
 		writeUserErr(c, err)
 		return
