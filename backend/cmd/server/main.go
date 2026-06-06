@@ -50,6 +50,7 @@ func main() {
 
 	inbHandler := handlers.NewInboundHandler(inbSvc, sbSvc)
 	userHandler := handlers.NewUserHandler(inbSvc)
+	outboundHandler := handlers.NewOutboundHandler(inbSvc)
 	subHandler := handlers.NewSubscriptionHandler(inbSvc, cfg.ServerHost)
 	trafficHandler := handlers.NewTrafficHandler(exp.ClashAddr, exp.ClashSecret)
 
@@ -81,6 +82,11 @@ func main() {
 		authed.POST("/users/:id/reset", userHandler.Reset)
 		authed.POST("/users/:id/reset-traffic", userHandler.ResetTraffic)
 		authed.DELETE("/users/:id", userHandler.Delete)
+
+		authed.GET("/outbounds", outboundHandler.List)
+		authed.POST("/outbounds", outboundHandler.Create)
+		authed.PUT("/outbounds/:id", outboundHandler.Update)
+		authed.DELETE("/outbounds/:id", outboundHandler.Delete)
 
 		authed.GET("/traffic/live", trafficHandler.Live)
 	}
