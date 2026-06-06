@@ -8,9 +8,10 @@ import (
 	"singbox-admin/internal/models"
 )
 
-// dnsResolver is the encrypted (DoT) upstream resolver used by per-outbound DNS
-// servers so a proxied user's queries egress through their outbound.
-const dnsResolver = "tls://1.1.1.1"
+// dnsResolverServer is the encrypted (DoT, type "tls") upstream resolver used by
+// per-outbound DNS servers so a proxied user's queries egress through their
+// outbound. An IP literal avoids a bootstrap-resolve loop.
+const dnsResolverServer = "1.1.1.1"
 
 func Generate(inbounds []models.Inbound, outbounds []models.Outbound, exp ExperimentalConfig) (string, error) {
 	tagByID := map[uint]string{}
@@ -73,24 +74,25 @@ func Generate(inbounds []models.Inbound, outbounds []models.Outbound, exp Experi
 	}
 	sort.Strings(tags)
 
+	// sing-box >= 1.12 DNS server formats (typed). The legacy {address: "..."}
+	// form is deprecated and fatal on >= 1.12.
 	routeRules := []map[string]any{}
-	dnsServers := []map[string]any{{"tag": "local", "address": "local"}}
+	dnsServers := []map[string]any{{"type": "local", "tag": "local"}}
 	dnsRules := []map[string]any{}
 	for _, tag := range tags {
 		users := usersByTag[tag]
 		sort.Strings(users)
 		routeRules = append(routeRules, map[string]any{"auth_user": users, "outbound": tag})
-		dnsServers = append(dnsServers, map[string]any{"tag": "dns-" + tag, "address": dnsResolver, "detour": tag})
+		dnsServers = append(dnsServers, map[string]any{"type": "tls", "tag": "dns-" + tag, "server": dnsResolverServer, "detour": tag})
 		dnsRules = append(dnsRules, map[string]any{"auth_user": users, "server": "dns-" + tag})
 	}
 
 	cfg := map[string]any{
 		"log": map[string]any{"level": "info"},
 		"dns": map[string]any{
-			"servers":  dnsServers,
-			"rules":    dnsRules,
-			"final":    "local",
-			"strategy": "prefer_ipv4",
+			"servers": dnsServers,
+			"rules":   dnsRules,
+			"final":   "local",
 		},
 		"inbounds":  ins,
 		"outbounds": obs,
