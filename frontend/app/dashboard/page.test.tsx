@@ -20,6 +20,9 @@ vi.mock("@/lib/api", () => ({
   stopSingbox: () => stopMock(),
   applySingbox: () => applyMock(),
   getLiveTraffic: () => getLiveTrafficMock(),
+  listInbounds: vi.fn().mockResolvedValue([]),
+  listOutbounds: vi.fn().mockResolvedValue([]),
+  listUsers: vi.fn().mockResolvedValue([]),
   logout: vi.fn(),
   UnauthorizedError: class extends Error {},
 }));

@@ -7,11 +7,15 @@ import {
 } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
 import { Modal } from "@/components/modal";
+import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { fieldLabel } from "@/lib/field-labels";
+import { copyText } from "@/lib/utils";
+import { ArrowDownToLine, Copy, Pencil, KeyRound, Trash2 } from "lucide-react";
 
 type FormState = {
   id?: number;
@@ -122,26 +126,60 @@ export default function InboundsPage() {
                 <CardTitle className="text-base font-normal">
                   {ib.tag} <span className="text-muted-foreground">· {ib.type} · :{ib.port}/{ib.network}</span>
                 </CardTitle>
-                <div className="flex gap-2">
-                  <Button variant="outline" className="rounded-full" onClick={() => openEdit(ib)}>编辑</Button>
-                  <Button variant="outline" className="rounded-full" onClick={() => setConfirmReset(ib)}>重置密钥</Button>
-                  <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(ib)}>删除</Button>
+                <div className="flex items-center gap-0.5">
+                  <Button variant="ghost" size="icon" aria-label="编辑" title="编辑" onClick={() => openEdit(ib)}>
+                    <Pencil />
+                  </Button>
+                  <Button variant="ghost" size="icon" aria-label="重置密钥" title="重置 reality 密钥 / 证书" onClick={() => setConfirmReset(ib)}>
+                    <KeyRound />
+                  </Button>
+                  <Button variant="ghost" size="icon" aria-label="删除" title="删除" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setConfirmDelete(ib)}>
+                    <Trash2 />
+                  </Button>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="divide-y divide-border">
-                {Object.entries(ib.publicInfo).map(([k, v]) => (
-                  <div key={k} className="flex justify-between gap-4 py-1">
-                    <span className="font-mono text-xs text-muted-foreground uppercase">{k}</span>
-                    <span className="truncate font-mono text-xs">{String(v)}</span>
-                  </div>
-                ))}
-              </div>
+              <dl className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                {Object.entries(ib.publicInfo).map(([k, v]) => {
+                  const val = String(v);
+                  const long = val.length > 18;
+                  return (
+                    <div key={k} className="min-w-0">
+                      <dt className="font-mono text-[11px] tracking-wider text-muted-foreground uppercase">
+                        {fieldLabel(k)}
+                      </dt>
+                      <dd className="mt-0.5 flex items-center gap-1">
+                        <span className="truncate font-mono text-sm" title={val}>{val}</span>
+                        {long && (
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="shrink-0 text-muted-foreground"
+                            aria-label={`复制${fieldLabel(k)}`}
+                            onClick={() => copyText(val)}
+                          >
+                            <Copy />
+                          </Button>
+                        )}
+                      </dd>
+                    </div>
+                  );
+                })}
+              </dl>
             </CardContent>
           </Card>
         ))}
-        {inbounds.length === 0 && <p className="text-sm text-muted-foreground">暂无入站，点右上角新建。</p>}
+        {inbounds.length === 0 && (
+          <Card className="rounded-lg">
+            <EmptyState
+              icon={ArrowDownToLine}
+              title="还没有入站"
+              description="入站是客户端连入的代理入口，先创建一个开始。"
+              action={<Button className="rounded-full" onClick={openCreate}>添加入站</Button>}
+            />
+          </Card>
+        )}
       </div>
 
       <Modal open={form !== null} onClose={() => setForm(null)} title={isEdit ? "编辑入站" : "新建入站"}>

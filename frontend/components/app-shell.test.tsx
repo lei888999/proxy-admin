@@ -26,8 +26,9 @@ describe("AppShell", () => {
   it("renders grouped nav labels and a scrollable main", () => {
     render(<AppShell><div>content</div></AppShell>);
     // group heading
-    expect(screen.getByText("概览", { selector: "p" })).toBeInTheDocument();
+    expect(screen.getByText("代理", { selector: "p" })).toBeInTheDocument();
     // nav destinations
+    expect(screen.getByRole("link", { name: "概览" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "入站" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "用户" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "配置" })).toBeInTheDocument();

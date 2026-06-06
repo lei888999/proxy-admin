@@ -1,0 +1,86 @@
+{
+  "dns": {
+    "final": "local",
+    "rules": [],
+    "servers": [
+      {
+        "tag": "local",
+        "type": "local"
+      }
+    ]
+  },
+  "experimental": {
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "secret": "de23dfe5eaea0dce3776d827ac47e2ac"
+    }
+  },
+  "inbounds": [
+    {
+      "listen": "::",
+      "listen_port": 8443,
+      "tag": "vless-reality",
+      "tls": {
+        "enabled": true,
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "www.microsoft.com",
+            "server_port": 443
+          },
+          "private_key": "EGEOdeKi15oYbvgbkaTWCipNqeGsYMR-RJMltVrVGGI",
+          "short_id": [
+            "be1b6b6b"
+          ]
+        },
+        "server_name": "www.microsoft.com"
+      },
+      "type": "vless",
+      "users": [
+        {
+          "flow": "xtls-rprx-vision",
+          "name": "u1",
+          "uuid": "5aba774e-7b7a-42fc-ba52-bf802b6de9fd"
+        }
+      ]
+    },
+    {
+      "down_mbps": 100,
+      "listen": "::",
+      "listen_port": 443,
+      "tag": "hysteria2",
+      "tls": {
+        "alpn": [
+          "h3"
+        ],
+        "certificate": [
+          "-----BEGIN CERTIFICATE-----\nMIIBYTCCAQagAwIBAgIQAxwWMlg41sNbxEyNjmcdZzAKBggqhkjOPQQDAjATMREw\nDwYDVQQDEwhiaW5nLmNvbTAeFw0yNjA2MDYwNTI2NDVaFw0zNjA2MDYwNjI2NDVa\nMBMxETAPBgNVBAMTCGJpbmcuY29tMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE\n78X5OgtS8ToRmREDuv2mntgmF+Vf5nxiAeMZXyzKH5S8LAUU5d0flb43av2OBPfX\nm7PynHDvaL1hq0LKHRqEsaM8MDowDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoG\nCCsGAQUFBwMBMBMGA1UdEQQMMAqCCGJpbmcuY29tMAoGCCqGSM49BAMCA0kAMEYC\nIQDHzu5blCWXRRZT7FObQF9Al7QBjIDIqm7MLtbgysxQ8wIhAOzHUq49zP9Ueoz3\nK48vSZ3Zy4HMHMWqIZBQvOxf/Oz6\n-----END CERTIFICATE-----\n"
+        ],
+        "enabled": true,
+        "key": [
+          "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEICAkEJsnD7qBoyOL8x2WcJ5C1T7F2VeExDamRbJW9bCToAoGCCqGSM49\nAwEHoUQDQgAE78X5OgtS8ToRmREDuv2mntgmF+Vf5nxiAeMZXyzKH5S8LAUU5d0f\nlb43av2OBPfXm7PynHDvaL1hq0LKHRqEsQ==\n-----END EC PRIVATE KEY-----\n"
+        ],
+        "server_name": "bing.com"
+      },
+      "type": "hysteria2",
+      "up_mbps": 100,
+      "users": []
+    }
+  ],
+  "log": {
+    "level": "info"
+  },
+  "outbounds": [
+    {
+      "tag": "direct",
+      "type": "direct"
+    }
+  ],
+  "route": {
+    "default_domain_resolver": {
+      "server": "local"
+    },
+    "final": "direct",
+    "rules": []
+  }
+}

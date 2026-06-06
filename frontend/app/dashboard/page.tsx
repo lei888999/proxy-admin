@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getStatus, startSingbox, stopSingbox, applySingbox, getLiveTraffic, LiveTraffic, UnauthorizedError, SingboxStatus } from "@/lib/api";
+import { getStatus, startSingbox, stopSingbox, applySingbox, getLiveTraffic, listInbounds, listOutbounds, listUsers, LiveTraffic, UnauthorizedError, SingboxStatus } from "@/lib/api";
 import { formatBytes } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/stat-card";
+import { ArrowUp, ArrowDown } from "lucide-react";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -14,6 +16,7 @@ export default function DashboardPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [live, setLive] = useState<LiveTraffic>({ up: 0, down: 0 });
+  const [counts, setCounts] = useState({ inbounds: 0, outbounds: 0, users: 0 });
 
   const refresh = useCallback(() => {
     getStatus()
@@ -24,6 +27,15 @@ export default function DashboardPage() {
   }, [router]);
 
   useEffect(refresh, [refresh]);
+  useEffect(() => {
+    Promise.all([
+      listInbounds().catch(() => []),
+      listOutbounds().catch(() => []),
+      listUsers().catch(() => []),
+    ]).then(([ins, outs, us]) =>
+      setCounts({ inbounds: ins.length, outbounds: outs.length, users: us.length })
+    );
+  }, []);
   useEffect(() => {
     let active = true;
     const tick = () => getLiveTraffic().then((l) => active && setLive(l)).catch(() => {});
@@ -54,10 +66,14 @@ export default function DashboardPage() {
       status.hasConfig ? "配置已就绪" : "未配置",
     ];
     return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="inline-flex items-center gap-2 text-base">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span
+          className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm ${
+            status.running ? "bg-sunset/15 text-sunset" : "bg-secondary text-muted-foreground"
+          }`}
+        >
           <span
-            className="size-2 rounded-full"
+            className={`size-1.5 rounded-full ${status.running ? "animate-pulse" : ""}`}
             style={{ background: status.running ? "var(--sunset)" : "var(--muted-foreground)" }}
           />
           {status.running ? "运行中" : "已停止"}
@@ -70,6 +86,11 @@ export default function DashboardPage() {
   return (
     <AppShell>
       <h1 className="mb-6 text-2xl font-normal tracking-tight">概览</h1>
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <StatCard label="入站" value={counts.inbounds} sub="代理入口" />
+        <StatCard label="出站" value={counts.outbounds} sub="转发节点" />
+        <StatCard label="用户" value={counts.users} sub="已配置账户" />
+      </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="rounded-lg">
           <CardHeader>
@@ -123,12 +144,16 @@ export default function DashboardPage() {
           <CardContent>
             <div className="flex gap-10">
               <div>
-                <p className="font-mono text-xs tracking-wider text-muted-foreground uppercase">上行</p>
-                <p className="mt-1 text-2xl font-normal">{formatBytes(live.up)}/s</p>
+                <p className="flex items-center gap-1 font-mono text-xs tracking-wider text-muted-foreground uppercase">
+                  <ArrowUp className="size-3" /> 上行
+                </p>
+                <p className="mt-1 text-2xl font-normal tabular-nums">{formatBytes(live.up)}/s</p>
               </div>
               <div>
-                <p className="font-mono text-xs tracking-wider text-muted-foreground uppercase">下行</p>
-                <p className="mt-1 text-2xl font-normal">{formatBytes(live.down)}/s</p>
+                <p className="flex items-center gap-1 font-mono text-xs tracking-wider text-muted-foreground uppercase">
+                  <ArrowDown className="size-3" /> 下行
+                </p>
+                <p className="mt-1 text-2xl font-normal tabular-nums">{formatBytes(live.down)}/s</p>
               </div>
             </div>
           </CardContent>

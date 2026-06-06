@@ -51,7 +51,7 @@ describe("UsersPage", () => {
     render(<UsersPage />);
     await userEvent.click(await screen.findByRole("button", { name: /新建用户/ }));
     await userEvent.type(screen.getByLabelText(/名称/), "bob");
-    await userEvent.click(screen.getByLabelText(/v1/));
+    await userEvent.click(screen.getByRole("checkbox", { name: /v1/ }));
     await userEvent.click(screen.getByRole("button", { name: /创建/ }));
     await waitFor(() => expect(createUserMock).toHaveBeenCalled());
     expect(createUserMock.mock.calls[0][0]).toBe("bob");

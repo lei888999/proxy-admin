@@ -8,10 +8,12 @@ import {
 import { formatBytes, copyText } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { Modal } from "@/components/modal";
+import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableHeader,
@@ -21,7 +23,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Copy, Pencil, KeyRound, RotateCcw, Trash2 } from "lucide-react";
+import { Copy, Pencil, KeyRound, RotateCcw, Trash2, Users as UsersIcon } from "lucide-react";
 
 type Form = { id?: number; name: string; inboundIds: number[]; outboundId: number | null };
 
@@ -100,7 +102,7 @@ export default function UsersPage() {
       <Card className="overflow-hidden rounded-lg p-0">
         <Table>
           <TableHeader>
-            <TableRow className="hover:bg-transparent">
+            <TableRow className="hover:bg-transparent [&>th]:font-mono [&>th]:text-xs [&>th]:font-normal [&>th]:tracking-wider [&>th]:text-muted-foreground [&>th]:uppercase">
               <TableHead>名称</TableHead>
               <TableHead>UUID</TableHead>
               <TableHead>密码</TableHead>
@@ -142,7 +144,18 @@ export default function UsersPage() {
             ))}
             {users.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">暂无用户。</TableCell>
+                <TableCell colSpan={6} className="p-0">
+                  <EmptyState
+                    icon={UsersIcon}
+                    title="还没有用户"
+                    description="创建用户后会生成 UUID / 密码与订阅链接。"
+                    action={
+                      <Button className="rounded-full" onClick={() => { setError(""); setForm({ name: "", inboundIds: [], outboundId: null }); }}>
+                        添加用户
+                      </Button>
+                    }
+                  />
+                </TableCell>
               </TableRow>
             )}
           </TableBody>
@@ -158,18 +171,24 @@ export default function UsersPage() {
             </div>
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">所属入站</Label>
-              <div className="space-y-1">
-                {inbounds.map((ib) => (
-                  <label key={ib.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      aria-label={ib.tag}
-                      checked={form.inboundIds.includes(ib.id)}
-                      onChange={() => toggle(ib.id)}
-                    />
-                    {ib.tag} <span className="text-muted-foreground">· {ib.type}</span>
-                  </label>
-                ))}
+              <div className="space-y-1.5">
+                {inbounds.map((ib) => {
+                  const checked = form.inboundIds.includes(ib.id);
+                  return (
+                    <label
+                      key={ib.id}
+                      className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
+                        checked
+                          ? "border-primary/40 bg-secondary"
+                          : "border-border hover:bg-secondary/50"
+                      }`}
+                    >
+                      <Checkbox aria-label={ib.tag} checked={checked} onCheckedChange={() => toggle(ib.id)} />
+                      <span>{ib.tag}</span>
+                      <span className="font-mono text-xs text-muted-foreground">{ib.type}</span>
+                    </label>
+                  );
+                })}
                 {inbounds.length === 0 && <p className="text-xs text-muted-foreground">还没有入站</p>}
               </div>
             </div>

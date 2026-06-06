@@ -4,13 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { listOutbounds, createOutbound, updateOutbound, deleteOutbound, Outbound } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
 import { Modal } from "@/components/modal";
+import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, ArrowUpFromLine } from "lucide-react";
 
 type Form = { id?: number; type: string; tag: string; server: string; port: string; username: string; password: string };
 const empty: Form = { type: "socks5", tag: "", server: "", port: "1080", username: "", password: "" };
@@ -65,7 +66,7 @@ export default function OutboundsPage() {
       <Card className="overflow-hidden rounded-lg p-0">
         <Table>
           <TableHeader>
-            <TableRow className="hover:bg-transparent">
+            <TableRow className="hover:bg-transparent [&>th]:font-mono [&>th]:text-xs [&>th]:font-normal [&>th]:tracking-wider [&>th]:text-muted-foreground [&>th]:uppercase">
               <TableHead>标签</TableHead>
               <TableHead>类型</TableHead>
               <TableHead>服务器</TableHead>
@@ -96,7 +97,14 @@ export default function OutboundsPage() {
             ))}
             {outbounds.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">暂无出站。</TableCell>
+                <TableCell colSpan={6} className="p-0">
+                  <EmptyState
+                    icon={ArrowUpFromLine}
+                    title="还没有出站"
+                    description="出站用于把流量转发到上游节点；不配置时用户默认直连。"
+                    action={<Button className="rounded-full" onClick={() => { setError(""); setForm({ ...empty }); }}>添加出站</Button>}
+                  />
+                </TableCell>
               </TableRow>
             )}
           </TableBody>
