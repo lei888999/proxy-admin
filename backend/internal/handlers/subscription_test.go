@@ -11,16 +11,22 @@ import (
 )
 
 type fakeSub struct {
-	yaml string
-	err  error
+	yaml     string
+	err      error
+	gotHost  string
+	gotToken string
 }
 
-func (f fakeSub) UserSubscription(token, host string) (string, error) { return f.yaml, f.err }
+func (f *fakeSub) UserSubscription(token, host string) (string, error) {
+	f.gotToken = token
+	f.gotHost = host
+	return f.yaml, f.err
+}
 
 func TestSubscriptionServesYAML(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	h := NewSubscriptionHandler(fakeSub{yaml: "proxies: []\n"}, "vps.example.com")
+	h := NewSubscriptionHandler(&fakeSub{yaml: "proxies: []\n"}, "vps.example.com")
 	r.GET("/sub/:token", h.Get)
 
 	w := httptest.NewRecorder()
@@ -41,7 +47,7 @@ func TestSubscriptionServesYAML(t *testing.T) {
 func TestSubscriptionUnknownToken404(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	h := NewSubscriptionHandler(fakeSub{err: inbound.ErrNotFound}, "vps.example.com")
+	h := NewSubscriptionHandler(&fakeSub{err: inbound.ErrNotFound}, "vps.example.com")
 	r.GET("/sub/:token", h.Get)
 
 	w := httptest.NewRecorder()
@@ -49,5 +55,38 @@ func TestSubscriptionUnknownToken404(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("code=%d, want 404", w.Code)
+	}
+}
+
+func TestSubscriptionStripsPortFromRequestHost(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	fs := &fakeSub{yaml: "proxies: []\n"} // empty SERVER_HOST -> fall back to request Host
+	h := NewSubscriptionHandler(fs, "")
+	r.GET("/sub/:token", h.Get)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/sub/abc", nil)
+	req.Host = "panel.example.com:8080"
+	r.ServeHTTP(w, req)
+
+	if fs.gotHost != "panel.example.com" {
+		t.Fatalf("host passed to builder = %q, want bare host without :8080", fs.gotHost)
+	}
+}
+
+func TestSubscriptionStripsPortFromConfiguredHost(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	fs := &fakeSub{yaml: "proxies: []\n"}
+	h := NewSubscriptionHandler(fs, "vps.example.com:8080") // misconfigured with a port
+	r.GET("/sub/:token", h.Get)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/sub/abc", nil)
+	r.ServeHTTP(w, req)
+
+	if fs.gotHost != "vps.example.com" {
+		t.Fatalf("host = %q, want vps.example.com (port stripped)", fs.gotHost)
 	}
 }
