@@ -2,7 +2,7 @@ package inbound
 
 import "singbox-admin/internal/models"
 
-// SeedDefaults creates one vless-reality (tcp 8443) and one hysteria2 (udp 443)
+// SeedDefaults creates one vless-reality (tcp 4443) and one hysteria2 (udp 8443)
 // inbound when there are none yet. Idempotent.
 func SeedDefaults(s *Service) error {
 	var n int64
@@ -12,10 +12,10 @@ func SeedDefaults(s *Service) error {
 	if n > 0 {
 		return nil
 	}
-	if _, err := s.CreateInbound("vless-reality", "vless-reality", 8443, nil); err != nil {
+	if _, err := s.CreateInbound("vless-reality", "vless-reality", 4443, nil); err != nil {
 		return err
 	}
-	if _, err := s.CreateInbound("hysteria2", "hysteria2", 443, nil); err != nil {
+	if _, err := s.CreateInbound("hysteria2", "hysteria2", 8443, nil); err != nil {
 		return err
 	}
 	return nil

@@ -17,7 +17,7 @@ func init() { register(hysteria2{}) }
 func (hysteria2) Type() string        { return "hysteria2" }
 func (hysteria2) Label() string       { return "Hysteria2" }
 func (hysteria2) Network() string     { return "udp" }
-func (hysteria2) DefaultPort() uint16 { return 443 }
+func (hysteria2) DefaultPort() uint16 { return 8443 }
 
 func (hysteria2) BuildSettings(params map[string]any) (string, error) {
 	sni := "bing.com"

@@ -11,10 +11,10 @@ func TestRegistryTypes(t *testing.T) {
 	if len(ts) != 2 {
 		t.Fatalf("types = %d, want 2", len(ts))
 	}
-	if ts[0].Type != "vless-reality" || ts[0].Network != "tcp" || ts[0].DefaultPort != 8443 {
+	if ts[0].Type != "vless-reality" || ts[0].Network != "tcp" || ts[0].DefaultPort != 4443 {
 		t.Fatalf("vless typeinfo: %+v", ts[0])
 	}
-	if ts[1].Type != "hysteria2" || ts[1].Network != "udp" || ts[1].DefaultPort != 443 {
+	if ts[1].Type != "hysteria2" || ts[1].Network != "udp" || ts[1].DefaultPort != 8443 {
 		t.Fatalf("hy2 typeinfo: %+v", ts[1])
 	}
 }

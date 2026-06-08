@@ -19,7 +19,7 @@ func init() { register(vlessReality{kg: NewKeyGen()}) }
 func (vlessReality) Type() string        { return "vless-reality" }
 func (vlessReality) Label() string       { return "VLESS-Reality" }
 func (vlessReality) Network() string     { return "tcp" }
-func (vlessReality) DefaultPort() uint16 { return 8443 }
+func (vlessReality) DefaultPort() uint16 { return 4443 }
 
 func (d vlessReality) BuildSettings(params map[string]any) (string, error) {
 	priv, pub, err := d.kg.RealityKeypair()

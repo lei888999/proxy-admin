@@ -28,8 +28,8 @@ vi.mock("@/lib/api", () => ({
 beforeEach(() => {
   listInboundsMock.mockReset().mockResolvedValue([]);
   listTypesMock.mockReset().mockResolvedValue([
-    { type: "vless-reality", label: "VLESS-Reality", network: "tcp", defaultPort: 8443 },
-    { type: "hysteria2", label: "Hysteria2", network: "udp", defaultPort: 443 },
+    { type: "vless-reality", label: "VLESS-Reality", network: "tcp", defaultPort: 4443 },
+    { type: "hysteria2", label: "Hysteria2", network: "udp", defaultPort: 8443 },
   ]);
   createInboundMock.mockReset().mockResolvedValue({ id: 1 });
   resetKeysMock.mockReset().mockResolvedValue({ id: 1 });
