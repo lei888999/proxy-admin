@@ -30,7 +30,7 @@ type FormState = {
 };
 
 const emptyForm: FormState = {
-  type: "vless-reality", tag: "", port: "8443",
+  type: "vless-reality", tag: "", port: "4443",
   handshake: "www.microsoft.com", handshakePort: "443",
   sni: "bing.com", up: "100", down: "100",
 };
