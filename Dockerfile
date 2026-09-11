@@ -10,9 +10,9 @@ COPY frontend/ ./
 # output:'export' produces /app/frontend/out
 RUN npm run build
 
+ARG SING_BOX_IMAGE=ghcr.io/sagernet/sing-box:latest
 # -------- Stage 2: build the Go single binary (frontend embedded) --------
 FROM golang:1.26-alpine AS backend
-ARG SING_BOX_IMAGE=ghcr.io/sagernet/sing-box:latest
 WORKDIR /src
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
