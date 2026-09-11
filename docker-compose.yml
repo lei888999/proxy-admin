@@ -12,7 +12,7 @@ services:
     # on the VPS without per-port mappings. NOTE: only works on Linux hosts.
     network_mode: host
     environment:
-      PORT: "8081"
+      PORT: ${PORT:-8080}
       DB_PATH: /data/sing-box-admin.db
       SINGBOX_DIR: /data/singbox
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required - set it in .env}
