@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
 
+ARG SING_BOX_IMAGE=ghcr.io/sagernet/sing-box:latest
+
 # -------- Stage 1: build the frontend static export --------
 FROM node:22-alpine AS frontend
 WORKDIR /app/frontend
@@ -10,7 +12,6 @@ COPY frontend/ ./
 # output:'export' produces /app/frontend/out
 RUN npm run build
 
-ARG SING_BOX_IMAGE=ghcr.io/sagernet/sing-box:latest
 # -------- Stage 2: build the Go single binary (frontend embedded) --------
 FROM golang:1.26-alpine AS backend
 WORKDIR /src
@@ -26,8 +27,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
     -o /out/sing-box-admin ./cmd/server
 
 # -------- sing-box binary (official multi-arch image) --------
-# Override SING_BOX_IMAGE to pin a release, e.g. ghcr.io/sagernet/sing-box:v1.11.4
-ARG SING_BOX_IMAGE=ghcr.io/sagernet/sing-box:latest
 FROM ${SING_BOX_IMAGE} AS singbox
 
 # -------- Stage 3: runtime --------
