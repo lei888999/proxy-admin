@@ -71,6 +71,16 @@ func (s *Service) Status() Status {
 	return s.statusLocked()
 }
 
+// ManagedRunning reports whether the panel-managed sing-box (started via Start)
+// is running, ignoring processes started outside the panel. The traffic poller
+// uses this so it only polls the Clash API when the panel's config (which
+// enables clash_api) is the one actually running.
+func (s *Service) ManagedRunning() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.pm.ManagedRunning()
+}
+
 func (s *Service) Start() (Status, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

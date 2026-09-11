@@ -109,6 +109,37 @@ func TestProcessStopSignalsAndClears(t *testing.T) {
 	}
 }
 
+// ManagedRunning tracks only the panel-started (PID-file) process and must NOT
+// report true for a sing-box detected via the pgrep fallback.
+func TestProcessManagedRunning(t *testing.T) {
+	env := newFakeEnv()
+	pm := newPM(t, env)
+
+	// Nothing started: not managed-running.
+	if pm.ManagedRunning() {
+		t.Fatal("should not be managed-running before start")
+	}
+
+	// External sing-box (pgrep only, no PID file): Running true, but not managed.
+	env.pgrep = true
+	if !pm.Running() {
+		t.Fatal("precondition: Running should be true via pgrep")
+	}
+	if pm.ManagedRunning() {
+		t.Fatal("external process must not count as managed-running")
+	}
+
+	// Panel-started process: managed-running true.
+	env.pgrep = false
+	env.spawnPid = 4242
+	if err := pm.Start("/bin/sing-box", "/cfg.json"); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if !pm.ManagedRunning() {
+		t.Fatal("should be managed-running after start")
+	}
+}
+
 func TestProcessStopWhenNotRunning(t *testing.T) {
 	pm := newPM(t, newFakeEnv())
 	if err := pm.Stop(); err != ErrNotRunning {

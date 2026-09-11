@@ -19,10 +19,19 @@ func NewProcessManager(env Env, pidPath, logPath string) *ProcessManager {
 }
 
 func (p *ProcessManager) Running() bool {
-	if pid, ok := p.readPid(); ok && p.env.Alive(pid) {
+	if p.ManagedRunning() {
 		return true
 	}
 	return p.env.Pgrep("sing-box")
+}
+
+// ManagedRunning reports whether the panel-started process (tracked by the PID
+// file) is alive. Unlike Running it does NOT fall back to pgrep, so it excludes
+// sing-box processes started outside the panel — used by the traffic poller,
+// which only expects the panel's config (with clash_api on 9090) to be listening.
+func (p *ProcessManager) ManagedRunning() bool {
+	pid, ok := p.readPid()
+	return ok && p.env.Alive(pid)
 }
 
 func (p *ProcessManager) Start(bin, configPath string) error {
