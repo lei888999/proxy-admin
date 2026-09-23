@@ -42,7 +42,22 @@ export default function InboundsPage() {
   const [confirmReset, setConfirmReset] = useState<Inbound | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Inbound | null>(null);
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+
+  async function finishMutation(configApplyError: string | undefined, success: string) {
+    setNotice(success);
+    setWarning(configApplyError ? `已保存，但应用到 sing-box 失败：${configApplyError}` : "");
+    // A completed write must not look like a failure just because the follow-up
+    // list refresh failed. The old fire-and-forget refresh hid this failure and
+    // gave the user no visible proof that creation completed.
+    try {
+      await refresh();
+    } catch {
+      setWarning("已保存，但列表刷新失败；请刷新页面确认最新状态。");
+    }
+  }
 
   function openCreate() {
     setError("");
@@ -77,10 +92,11 @@ export default function InboundsPage() {
         ? { serverName: form.sni, upMbps: Number(form.up), downMbps: Number(form.down) }
         : { handshake: form.handshake, handshakePort: Number(form.handshakePort) };
     try {
-      if (form.id) await updateInbound(form.id, form.tag, Number(form.port), params);
-      else await createInbound(form.type, form.tag, Number(form.port), params);
+      const res = form.id
+        ? await updateInbound(form.id, form.tag, Number(form.port), params)
+        : await createInbound(form.type, form.tag, Number(form.port), params);
       setForm(null);
-      refresh();
+      await finishMutation(res.configApplyError, form.id ? "入站已保存。" : "入站已创建。");
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
     } finally {
@@ -90,15 +106,25 @@ export default function InboundsPage() {
 
   async function doReset() {
     if (!confirmReset) return;
-    await resetInboundKeys(confirmReset.id);
-    setConfirmReset(null);
-    refresh();
+    setError("");
+    try {
+      const res = await resetInboundKeys(confirmReset.id);
+      setConfirmReset(null);
+      await finishMutation(res.configApplyError, "入站密钥已重置。");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "重置密钥失败");
+    }
   }
   async function doDelete() {
     if (!confirmDelete) return;
-    await deleteInbound(confirmDelete.id);
-    setConfirmDelete(null);
-    refresh();
+    setError("");
+    try {
+      const res = await deleteInbound(confirmDelete.id);
+      setConfirmDelete(null);
+      await finishMutation(res.configApplyError, "入站已删除。");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除入站失败");
+    }
   }
 
   const isEdit = !!form?.id;
@@ -109,6 +135,10 @@ export default function InboundsPage() {
         <h1 className="text-2xl font-normal tracking-tight">入站</h1>
         <Button className="h-9 rounded-full px-5" onClick={openCreate}><Plus />新建入站</Button>
       </div>
+
+      {notice && <p className="mb-4 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground">{notice}</p>}
+      {warning && <p className="mb-4 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">{warning}</p>}
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
       <div className="space-y-4">
         {inbounds.map((ib) => (

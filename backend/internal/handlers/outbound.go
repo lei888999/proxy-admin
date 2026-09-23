@@ -19,7 +19,9 @@ type OutboundController interface {
 
 type OutboundHandler struct{ ctrl OutboundController }
 
-func NewOutboundHandler(ctrl OutboundController) *OutboundHandler { return &OutboundHandler{ctrl: ctrl} }
+func NewOutboundHandler(ctrl OutboundController) *OutboundHandler {
+	return &OutboundHandler{ctrl: ctrl}
+}
 
 type outboundBody struct {
 	Type     string `json:"type"`
@@ -59,11 +61,7 @@ func (h *OutboundHandler) Create(c *gin.Context) {
 		return
 	}
 	o, err := h.ctrl.CreateOutbound(b.Type, b.Tag, b.Server, b.Port, b.Username, b.Password)
-	if err != nil {
-		writeOutboundErr(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, o)
+	respondMutation(c, o, err, writeOutboundErr)
 }
 
 func (h *OutboundHandler) Update(c *gin.Context) {
@@ -78,11 +76,7 @@ func (h *OutboundHandler) Update(c *gin.Context) {
 		return
 	}
 	o, err := h.ctrl.UpdateOutbound(id, b.Type, b.Tag, b.Server, b.Port, b.Username, b.Password)
-	if err != nil {
-		writeOutboundErr(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, o)
+	respondMutation(c, o, err, writeOutboundErr)
 }
 
 func (h *OutboundHandler) Delete(c *gin.Context) {
@@ -91,9 +85,5 @@ func (h *OutboundHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad id"})
 		return
 	}
-	if err := h.ctrl.DeleteOutbound(id); err != nil {
-		writeOutboundErr(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	respondMutation(c, okBody(), h.ctrl.DeleteOutbound(id), writeOutboundErr)
 }

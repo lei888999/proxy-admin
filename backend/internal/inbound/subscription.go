@@ -41,7 +41,15 @@ func (s *Service) UserSubscription(subToken, serverHost string) (string, error) 
 		"proxy-groups": []map[string]any{
 			{"name": "节点", "type": "select", "proxies": names},
 		},
-		"rules": []string{"MATCH,节点"},
+		// These are evaluated on the CLIENT, before traffic reaches the VPS.
+		// GEOSITE requires Mihomo / Clash.Meta (which is already required for
+		// this Hysteria2 subscription). GEOIP covers clients/apps that connect
+		// to an IP directly rather than preserving the destination domain.
+		"rules": []string{
+			"GEOSITE,CN,DIRECT",
+			"GEOIP,CN,DIRECT,no-resolve",
+			"MATCH,节点",
+		},
 	}
 	b, err := yaml.Marshal(cfg)
 	if err != nil {

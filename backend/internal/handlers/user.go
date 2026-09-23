@@ -56,11 +56,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 	u, err := h.ctrl.CreateUser(b.Name, b.InboundIDs, b.OutboundID)
-	if err != nil {
-		writeUserErr(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, u)
+	respondMutation(c, u, err, writeUserErr)
 }
 
 func (h *UserHandler) Update(c *gin.Context) {
@@ -75,11 +71,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 	u, err := h.ctrl.UpdateUser(id, b.Name, b.InboundIDs, b.OutboundID)
-	if err != nil {
-		writeUserErr(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, u)
+	respondMutation(c, u, err, writeUserErr)
 }
 
 func (h *UserHandler) Reset(c *gin.Context) {
@@ -89,11 +81,7 @@ func (h *UserHandler) Reset(c *gin.Context) {
 		return
 	}
 	u, err := h.ctrl.ResetUserCreds(id)
-	if err != nil {
-		writeUserErr(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, u)
+	respondMutation(c, u, err, writeUserErr)
 }
 
 func (h *UserHandler) ResetTraffic(c *gin.Context) {
@@ -115,9 +103,5 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad id"})
 		return
 	}
-	if err := h.ctrl.DeleteUser(id); err != nil {
-		writeUserErr(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	respondMutation(c, okBody(), h.ctrl.DeleteUser(id), writeUserErr)
 }

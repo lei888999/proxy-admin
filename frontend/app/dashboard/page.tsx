@@ -82,6 +82,12 @@ export default function DashboardPage() {
             ) : (
               <>
                 {statusLine()}
+                {status.external && (
+                  <p className="mt-4 rounded-lg border border-border bg-secondary px-3 py-2 text-xs text-muted-foreground">
+                    检测到一个不由面板管理的 sing-box 进程。面板不会启停它，但它会占用代理端口，
+                    并让流量统计读不到 Clash API。请先手动停掉它，再用面板启动。
+                  </p>
+                )}
                 {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Button

@@ -33,9 +33,21 @@ export default function UsersPage() {
   const { data: outbounds = [] } = useOutbounds();
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<User | null>(null);
   const [confirmResetTraffic, setConfirmResetTraffic] = useState<User | null>(null);
+
+  async function finishMutation(configApplyError: string | undefined, success: string) {
+    setNotice(success);
+    setWarning(configApplyError ? `已保存，但应用到 sing-box 失败：${configApplyError}` : "");
+    try {
+      await refresh();
+    } catch {
+      setWarning("已保存，但列表刷新失败；请刷新页面确认最新状态。");
+    }
+  }
 
   function toggle(id: number) {
     if (!form) return;
@@ -49,10 +61,11 @@ export default function UsersPage() {
     setBusy(true);
     setError("");
     try {
-      if (form.id) await updateUser(form.id, form.name, form.inboundIds, form.outboundId);
-      else await createUser(form.name, form.inboundIds, form.outboundId);
+      const res = form.id
+        ? await updateUser(form.id, form.name, form.inboundIds, form.outboundId)
+        : await createUser(form.name, form.inboundIds, form.outboundId);
       setForm(null);
-      refresh();
+      await finishMutation(res.configApplyError, form.id ? "用户已保存。" : "用户已创建。");
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
     } finally {
@@ -61,20 +74,35 @@ export default function UsersPage() {
   }
 
   async function onReset(id: number) {
-    await resetUserCreds(id);
-    refresh();
+    setError("");
+    try {
+      const res = await resetUserCreds(id);
+      await finishMutation(res.configApplyError, "用户凭证已重置。");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "重置凭证失败");
+    }
   }
   async function doDelete() {
     if (!confirmDelete) return;
-    await deleteUser(confirmDelete.id);
-    setConfirmDelete(null);
-    refresh();
+    setError("");
+    try {
+      const res = await deleteUser(confirmDelete.id);
+      setConfirmDelete(null);
+      await finishMutation(res.configApplyError, "用户已删除。");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除用户失败");
+    }
   }
   async function doResetTraffic() {
     if (!confirmResetTraffic) return;
-    await resetUserTraffic(confirmResetTraffic.id);
-    setConfirmResetTraffic(null);
-    refresh();
+    setError("");
+    try {
+      await resetUserTraffic(confirmResetTraffic.id);
+      setConfirmResetTraffic(null);
+      await finishMutation(undefined, "流量统计已清零。");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "重置流量失败");
+    }
   }
 
   function copySub(token: string) {
@@ -90,6 +118,10 @@ export default function UsersPage() {
         </Button>
       </div>
 
+      {notice && <p className="mb-4 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground">{notice}</p>}
+      {warning && <p className="mb-4 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">{warning}</p>}
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
       <Card className="overflow-hidden rounded-lg p-0">
         <Table>
           <TableHeader>
@@ -98,7 +130,7 @@ export default function UsersPage() {
               <TableHead>UUID</TableHead>
               <TableHead>密码</TableHead>
               <TableHead>入站</TableHead>
-              <TableHead>流量</TableHead>
+              <TableHead title="按在线连接每秒采样累计；极短连接可能未被观测到，不应用于精确计费。">采样流量</TableHead>
               <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>

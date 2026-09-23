@@ -14,17 +14,18 @@ const deleteMock = vi.fn();
 vi.mock("@/lib/api", () => ({
   listOutbounds: () => listMock(),
   createOutbound: (...a: unknown[]) => createMock(...a),
-  updateOutbound: vi.fn(),
+  updateOutbound: vi.fn().mockResolvedValue({}),
   deleteOutbound: (...a: unknown[]) => deleteMock(...a),
   getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1", running: false, hasConfig: true }),
   logout: vi.fn(),
+  changePassword: vi.fn().mockResolvedValue(undefined),
   UnauthorizedError: class extends Error {},
 }));
 
 beforeEach(() => {
   listMock.mockReset().mockResolvedValue([]);
   createMock.mockReset().mockResolvedValue({ id: 1 });
-  deleteMock.mockReset().mockResolvedValue(undefined);
+  deleteMock.mockReset().mockResolvedValue({});
 });
 
 describe("OutboundsPage", () => {

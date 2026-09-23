@@ -120,4 +120,14 @@ describe("api", () => {
     await resetInboundKeys(1);
     expect(fetchMock.mock.calls[1][0]).toContain("/reset-keys");
   });
+
+  it("accepts a successful login even when a proxy strips its JSON body", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 200 })));
+    await expect(login("admin", "mnice7082")).resolves.toEqual({ username: "admin" });
+  });
+
+  it("treats a 2xx create as successful even with a malformed optional body", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("not-json", { status: 200 })));
+    await expect(createInbound("hysteria2", "h1", 443, {})).resolves.toEqual({});
+  });
 });

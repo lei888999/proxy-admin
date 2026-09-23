@@ -22,7 +22,19 @@ export default function OutboundsPage() {
   const [form, setForm] = useState<Form | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Outbound | null>(null);
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+
+  async function finishMutation(configApplyError: string | undefined, success: string) {
+    setNotice(success);
+    setWarning(configApplyError ? `已保存，但应用到 sing-box 失败：${configApplyError}` : "");
+    try {
+      await refresh();
+    } catch {
+      setWarning("已保存，但列表刷新失败；请刷新页面确认最新状态。");
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,10 +46,9 @@ export default function OutboundsPage() {
       port: Number(form.port), username: form.username, password: form.password,
     };
     try {
-      if (form.id) await updateOutbound(form.id, payload);
-      else await createOutbound(payload);
+      const res = form.id ? await updateOutbound(form.id, payload) : await createOutbound(payload);
       setForm(null);
-      refresh();
+      await finishMutation(res.configApplyError, form.id ? "出站已保存。" : "出站已创建。");
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
     } finally {
@@ -47,9 +58,14 @@ export default function OutboundsPage() {
 
   async function doDelete() {
     if (!confirmDelete) return;
-    await deleteOutbound(confirmDelete.id);
-    setConfirmDelete(null);
-    refresh();
+    setError("");
+    try {
+      const res = await deleteOutbound(confirmDelete.id);
+      setConfirmDelete(null);
+      await finishMutation(res.configApplyError, "出站已删除。");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除出站失败");
+    }
   }
 
   return (
@@ -58,6 +74,10 @@ export default function OutboundsPage() {
         <h1 className="text-2xl font-normal tracking-tight">出站</h1>
         <Button className="h-9 rounded-full px-5" onClick={() => { setError(""); setForm({ ...empty }); }}><Plus />新建出站</Button>
       </div>
+
+      {notice && <p className="mb-4 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground">{notice}</p>}
+      {warning && <p className="mb-4 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">{warning}</p>}
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
       <Card className="overflow-hidden rounded-lg p-0">
         <Table>

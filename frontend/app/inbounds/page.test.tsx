@@ -22,6 +22,7 @@ vi.mock("@/lib/api", () => ({
   deleteInbound: (...a: unknown[]) => deleteInboundMock(...a),
   getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true }),
   logout: vi.fn(),
+  changePassword: vi.fn().mockResolvedValue(undefined),
   UnauthorizedError: class extends Error {},
 }));
 
@@ -33,7 +34,7 @@ beforeEach(() => {
   ]);
   createInboundMock.mockReset().mockResolvedValue({ id: 1 });
   resetKeysMock.mockReset().mockResolvedValue({ id: 1 });
-  deleteInboundMock.mockReset().mockResolvedValue(undefined);
+  deleteInboundMock.mockReset().mockResolvedValue({});
 });
 
 describe("InboundsPage", () => {
@@ -44,6 +45,7 @@ describe("InboundsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /创建/ }));
     await waitFor(() => expect(createInboundMock).toHaveBeenCalled());
     expect(createInboundMock.mock.calls[0][0]).toBe("vless-reality");
+    expect(await screen.findByText("入站已创建。")).toBeInTheDocument();
   });
 
   it("重置密钥需二次确认", async () => {

@@ -8,15 +8,19 @@ import (
 	"singbox-admin/internal/traffic"
 )
 
-type TrafficHandler struct {
-	clashAddr   string
-	clashSecret string
+// LiveTrafficSource exposes the single cached, global throughput sample.
+type LiveTrafficSource interface {
+	Snapshot() traffic.Live
 }
 
-func NewTrafficHandler(clashAddr, clashSecret string) *TrafficHandler {
-	return &TrafficHandler{clashAddr: clashAddr, clashSecret: clashSecret}
+type TrafficHandler struct{ source LiveTrafficSource }
+
+func NewTrafficHandler(source LiveTrafficSource) *TrafficHandler {
+	return &TrafficHandler{source: source}
 }
 
 func (h *TrafficHandler) Live(c *gin.Context) {
-	c.JSON(http.StatusOK, traffic.ReadLive(h.clashAddr, h.clashSecret))
+	// This is only an in-memory read. The monitor owns the one long-lived Clash
+	// stream, so a page refresh never opens another stream at sing-box.
+	c.JSON(http.StatusOK, h.source.Snapshot())
 }

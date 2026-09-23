@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -124,5 +127,73 @@ func TestApplyMapsSingboxError(t *testing.T) {
 	w := inbReq(inbRouter(&fakeInbCtrl{}, r), http.MethodPost, "/api/singbox/apply", "")
 	if w.Code != 400 {
 		t.Fatalf("code=%d", w.Code)
+	}
+}
+
+// A mutation whose row committed but whose sing-box apply failed must be a
+// success-with-warning, not a 500: the old behavior told the user "创建失败" for a
+// row that existed, so the retry then failed on a duplicate tag.
+func TestCreateInboundApplyFailureIsWarningNotError(t *testing.T) {
+	c := &fakeInbCtrl{createErr: &inbound.ApplyError{Err: errors.New("sing-box restart failed")}}
+	w := inbReq(inbRouter(c, &fakeRestarter{}), http.MethodPost, "/api/inbounds",
+		`{"type":"hysteria2","tag":"h1","port":443}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("code=%d, want 200 (row is committed), body=%s", w.Code, w.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body["configApplyError"] != "sing-box restart failed" {
+		t.Fatalf("configApplyError = %v, want the apply reason", body["configApplyError"])
+	}
+	if body["tag"] != "h1" {
+		t.Fatalf("the saved entity must still be returned, got %v", body)
+	}
+}
+
+func TestDeleteInboundApplyFailureIsWarningNotError(t *testing.T) {
+	c := &fakeInbCtrl{deleteErr: &inbound.ApplyError{Err: errors.New("write failed")}}
+	w := inbReq(inbRouter(c, &fakeRestarter{}), http.MethodDelete, "/api/inbounds/3", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("code=%d, want 200", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "configApplyError") {
+		t.Fatalf("body=%s, want a configApplyError warning", w.Body.String())
+	}
+}
+
+// A port the panel itself occupies is rejected as a conflict, instead of being
+// accepted and leaving sing-box unable to bind with the reason only in its log.
+func TestCreateInboundReservedPortConflicts(t *testing.T) {
+	c := &fakeInbCtrl{createErr: fmt.Errorf("%w: 面板端口", inbound.ErrPortReserved)}
+	w := inbReq(inbRouter(c, &fakeRestarter{}), http.MethodPost, "/api/inbounds",
+		`{"type":"hysteria2","tag":"h1","port":8080}`)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("code=%d, want 409", w.Code)
+	}
+}
+
+// An explicit apply IS the operation, so a failure there stays an error — and an
+// invalid config must surface `sing-box check` output rather than a bare 500.
+func TestApplyReportsRegenerateFailureWithDetail(t *testing.T) {
+	c := &fakeInbCtrl{regenErr: &inbound.ApplyError{Err: &singbox.InvalidConfigError{Output: "bad inbound"}}}
+	w := inbReq(inbRouter(c, &fakeRestarter{}), http.MethodPost, "/api/singbox/apply", "")
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("code=%d, want 400", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "bad inbound") {
+		t.Fatalf("body=%s, want the check output", w.Body.String())
+	}
+}
+
+func TestStartFailureSurfacesLogTail(t *testing.T) {
+	r := &fakeRestarter{err: &singbox.StartFailedError{Output: "listen tcp :4443: address already in use"}}
+	w := inbReq(inbRouter(&fakeInbCtrl{}, r), http.MethodPost, "/api/singbox/apply", "")
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("code=%d, want 400", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "address already in use") {
+		t.Fatalf("body=%s, want the log tail", w.Body.String())
 	}
 }

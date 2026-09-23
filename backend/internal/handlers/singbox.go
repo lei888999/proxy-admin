@@ -79,9 +79,14 @@ func (h *SingboxHandler) PutConfig(c *gin.Context) {
 
 func writeStartError(c *gin.Context, err error) {
 	var ice *singbox.InvalidConfigError
+	var sfe *singbox.StartFailedError
 	switch {
 	case errors.As(err, &ice):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid config", "detail": ice.Output})
+	case errors.As(err, &sfe):
+		// Spawned but died at once — almost always a listen port already taken.
+		// The reason exists only in sing-box's log, so pass the tail through.
+		c.JSON(http.StatusBadRequest, gin.H{"error": sfe.Error(), "detail": sfe.Output})
 	case errors.Is(err, singbox.ErrNotInstalled), errors.Is(err, singbox.ErrNoConfig):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, singbox.ErrAlreadyRunning):

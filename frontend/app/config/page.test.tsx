@@ -11,6 +11,7 @@ vi.mock("@/lib/api", () => ({
   getConfig: () => getConfigMock(),
   getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true }),
   logout: vi.fn(),
+  changePassword: vi.fn().mockResolvedValue(undefined),
   UnauthorizedError: class extends Error {},
 }));
 

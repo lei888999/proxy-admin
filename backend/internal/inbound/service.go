@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
 
 	"gorm.io/gorm"
 
@@ -18,9 +20,19 @@ var (
 	ErrInvalidTag      = errors.New("invalid tag")
 	ErrInvalidName     = errors.New("invalid name")
 	ErrPortInUse       = errors.New("port in use")
+	ErrPortReserved    = errors.New("port reserved by the panel")
 	ErrInvalidType     = errors.New("invalid type")
 	ErrInvalidOutbound = errors.New("invalid outbound")
 )
+
+// ApplyError marks a failure that happened AFTER the database change committed:
+// the row is saved, but regenerating or applying the sing-box config failed.
+// Callers must report these as success-with-warning — retrying the business
+// operation would only collide with the row that is already there.
+type ApplyError struct{ Err error }
+
+func (e *ApplyError) Error() string { return e.Err.Error() }
+func (e *ApplyError) Unwrap() error { return e.Err }
 
 type ConfigWriter interface {
 	SaveConfig(content string) error
@@ -29,13 +41,51 @@ type ConfigWriter interface {
 	ApplyConfig(content string) error
 }
 
+// portKey identifies a listen port within one network ("tcp"/"udp").
+type portKey struct {
+	port    uint16
+	network string
+}
+
 type Service struct {
 	db     *gorm.DB
 	writer ConfigWriter
+
+	// mu serializes config regeneration. Every mutation ends in a read-all ->
+	// Generate -> ApplyConfig sequence; without this, two concurrent requests
+	// interleave their writes and stop/start cycles and leave the config file,
+	// the pid file and the live process disagreeing.
+	mu sync.Mutex
+
+	// reserved holds ports the panel itself occupies, so an inbound cannot be
+	// created on one. sing-box would merely fail to bind, and the only clue
+	// would be in its own log.
+	resMu    sync.RWMutex
+	reserved map[portKey]string
 }
 
 func NewService(db *gorm.DB, writer ConfigWriter) *Service {
-	return &Service{db: db, writer: writer}
+	return &Service{db: db, writer: writer, reserved: map[portKey]string{}}
+}
+
+// ReservePort marks port/network as taken by the panel, with a human label used
+// in the rejection message.
+func (s *Service) ReservePort(port uint16, network, label string) {
+	if port == 0 {
+		return
+	}
+	s.resMu.Lock()
+	defer s.resMu.Unlock()
+	s.reserved[portKey{port, network}] = label
+}
+
+func (s *Service) checkReserved(port uint16, network string) error {
+	s.resMu.RLock()
+	defer s.resMu.RUnlock()
+	if label, ok := s.reserved[portKey{port, network}]; ok {
+		return fmt.Errorf("%w: %s", ErrPortReserved, label)
+	}
+	return nil
 }
 
 func genUUID() string { return NewKeyGen().UUID() }
@@ -59,6 +109,9 @@ type InboundView struct {
 	Port       uint16         `json:"port"`
 	Network    string         `json:"network"`
 	PublicInfo map[string]any `json:"publicInfo"`
+	// SettingsError surfaces a settings blob that no longer decodes, instead of
+	// silently rendering an inbound with no detail at all.
+	SettingsError string `json:"settingsError,omitempty"`
 }
 
 func (s *Service) listInbounds() ([]models.Inbound, error) {
@@ -75,10 +128,13 @@ func (s *Service) ListInboundViews() ([]InboundView, error) {
 	views := make([]InboundView, 0, len(ins))
 	for _, in := range ins {
 		v := InboundView{ID: in.ID, Type: in.Type, Tag: in.Tag, Port: in.Port, Network: in.Network}
-		if d, ok := Get(in.Type); ok {
-			if pi, err := d.PublicInfo(in.Settings); err == nil {
-				v.PublicInfo = pi
-			}
+		d, ok := Get(in.Type)
+		if !ok {
+			v.SettingsError = "unknown inbound type: " + in.Type
+		} else if pi, err := d.PublicInfo(in.Settings); err != nil {
+			v.SettingsError = err.Error()
+		} else {
+			v.PublicInfo = pi
 		}
 		views = append(views, v)
 	}
@@ -86,6 +142,34 @@ func (s *Service) ListInboundViews() ([]InboundView, error) {
 }
 
 func (s *Service) Types() []TypeInfo { return Types() }
+
+// ensureInboundFree rejects a duplicate tag or an already-used port/network pair
+// within the given transaction, so the check and the insert cannot be separated
+// by a concurrent writer.
+func ensureInboundFree(tx *gorm.DB, tag string, port uint16, network string, excludeID uint) error {
+	var n int64
+	q := tx.Model(&models.Inbound{}).Where("tag = ?", tag)
+	if excludeID != 0 {
+		q = q.Where("id <> ?", excludeID)
+	}
+	if err := q.Count(&n).Error; err != nil {
+		return err
+	}
+	if n > 0 {
+		return ErrTagExists
+	}
+	q = tx.Model(&models.Inbound{}).Where("port = ? AND network = ?", port, network)
+	if excludeID != 0 {
+		q = q.Where("id <> ?", excludeID)
+	}
+	if err := q.Count(&n).Error; err != nil {
+		return err
+	}
+	if n > 0 {
+		return ErrPortInUse
+	}
+	return nil
+}
 
 func (s *Service) CreateInbound(typ, tag string, port uint16, params map[string]any) (models.Inbound, error) {
 	d, ok := Get(typ)
@@ -96,54 +180,55 @@ func (s *Service) CreateInbound(typ, tag string, port uint16, params map[string]
 	if tag == "" {
 		return models.Inbound{}, ErrInvalidTag
 	}
-	var count int64
-	s.db.Model(&models.Inbound{}).Where("tag = ?", tag).Count(&count)
-	if count > 0 {
-		return models.Inbound{}, ErrTagExists
-	}
-	s.db.Model(&models.Inbound{}).Where("port = ? AND network = ?", port, d.Network()).Count(&count)
-	if count > 0 {
-		return models.Inbound{}, ErrPortInUse
-	}
-	settings, err := d.BuildSettings(params)
-	if err != nil {
+	if err := s.checkReserved(port, d.Network()); err != nil {
 		return models.Inbound{}, err
 	}
-	in := models.Inbound{Tag: tag, Type: typ, Network: d.Network(), Port: port, Settings: settings}
-	if err := s.db.Create(&in).Error; err != nil {
+	var in models.Inbound
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := ensureInboundFree(tx, tag, port, d.Network(), 0); err != nil {
+			return err
+		}
+		settings, err := d.BuildSettings(params)
+		if err != nil {
+			return err
+		}
+		in = models.Inbound{Tag: tag, Type: typ, Network: d.Network(), Port: port, Settings: settings}
+		return tx.Create(&in).Error
+	})
+	if err != nil {
 		return models.Inbound{}, err
 	}
 	return in, s.Regenerate()
 }
 
 func (s *Service) UpdateInbound(id uint, tag string, port uint16, params map[string]any) (models.Inbound, error) {
-	var in models.Inbound
-	if err := s.db.First(&in, id).Error; err != nil {
-		return models.Inbound{}, ErrNotFound
-	}
-	d, ok := Get(in.Type)
-	if !ok {
-		return models.Inbound{}, ErrUnknownType
-	}
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
 		return models.Inbound{}, ErrInvalidTag
 	}
-	var count int64
-	s.db.Model(&models.Inbound{}).Where("tag = ? AND id <> ?", tag, id).Count(&count)
-	if count > 0 {
-		return models.Inbound{}, ErrTagExists
-	}
-	s.db.Model(&models.Inbound{}).Where("port = ? AND network = ? AND id <> ?", port, in.Network, id).Count(&count)
-	if count > 0 {
-		return models.Inbound{}, ErrPortInUse
-	}
-	settings, err := d.UpdateSettings(in.Settings, params)
+	var in models.Inbound
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&in, id).Error; err != nil {
+			return ErrNotFound
+		}
+		d, ok := Get(in.Type)
+		if !ok {
+			return ErrUnknownType
+		}
+		if err := s.checkReserved(port, in.Network); err != nil {
+			return err
+		}
+		if err := ensureInboundFree(tx, tag, port, in.Network, id); err != nil {
+			return err
+		}
+		settings, err := d.UpdateSettings(in.Settings, params)
+		if err != nil {
+			return err
+		}
+		in.Tag, in.Port, in.Settings = tag, port, settings
+		return tx.Save(&in).Error
+	})
 	if err != nil {
-		return models.Inbound{}, err
-	}
-	in.Tag, in.Port, in.Settings = tag, port, settings
-	if err := s.db.Save(&in).Error; err != nil {
 		return models.Inbound{}, err
 	}
 	return in, s.Regenerate()
@@ -151,33 +236,39 @@ func (s *Service) UpdateInbound(id uint, tag string, port uint16, params map[str
 
 func (s *Service) ResetInboundKeys(id uint) (models.Inbound, error) {
 	var in models.Inbound
-	if err := s.db.First(&in, id).Error; err != nil {
-		return models.Inbound{}, ErrNotFound
-	}
-	d, ok := Get(in.Type)
-	if !ok {
-		return models.Inbound{}, ErrUnknownType
-	}
-	settings, err := d.ResetSecrets(in.Settings)
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&in, id).Error; err != nil {
+			return ErrNotFound
+		}
+		d, ok := Get(in.Type)
+		if !ok {
+			return ErrUnknownType
+		}
+		settings, err := d.ResetSecrets(in.Settings)
+		if err != nil {
+			return err
+		}
+		in.Settings = settings
+		return tx.Save(&in).Error
+	})
 	if err != nil {
-		return models.Inbound{}, err
-	}
-	in.Settings = settings
-	if err := s.db.Save(&in).Error; err != nil {
 		return models.Inbound{}, err
 	}
 	return in, s.Regenerate()
 }
 
 func (s *Service) DeleteInbound(id uint) error {
-	var in models.Inbound
-	if err := s.db.First(&in, id).Error; err != nil {
-		return ErrNotFound
-	}
-	if err := s.db.Model(&in).Association("Users").Clear(); err != nil {
-		return err
-	}
-	if err := s.db.Delete(&in).Error; err != nil {
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var in models.Inbound
+		if err := tx.First(&in, id).Error; err != nil {
+			return ErrNotFound
+		}
+		if err := tx.Model(&in).Association("Users").Clear(); err != nil {
+			return err
+		}
+		return tx.Delete(&in).Error
+	})
+	if err != nil {
 		return err
 	}
 	return s.Regenerate()
@@ -214,14 +305,14 @@ func (s *Service) ListUserViews() ([]UserView, error) {
 	return views, nil
 }
 
-func (s *Service) setUserInbounds(u *models.User, inboundIDs []uint) error {
+func setUserInbounds(tx *gorm.DB, u *models.User, inboundIDs []uint) error {
 	var ins []models.Inbound
 	if len(inboundIDs) > 0 {
-		if err := s.db.Find(&ins, inboundIDs).Error; err != nil {
+		if err := tx.Find(&ins, inboundIDs).Error; err != nil {
 			return err
 		}
 	}
-	return s.db.Model(u).Association("Inbounds").Replace(ins)
+	return tx.Model(u).Association("Inbounds").Replace(ins)
 }
 
 func (s *Service) CreateUser(name string, inboundIDs []uint, outboundID *uint) (models.User, error) {
@@ -229,35 +320,46 @@ func (s *Service) CreateUser(name string, inboundIDs []uint, outboundID *uint) (
 	if name == "" {
 		return models.User{}, ErrInvalidName
 	}
-	if err := s.validateOutbound(outboundID); err != nil {
-		return models.User{}, err
-	}
-	u := models.User{Name: name, UUID: genUUID(), Password: genPassword(), SubToken: genToken(), OutboundID: outboundID}
-	if err := s.db.Create(&u).Error; err != nil {
-		return models.User{}, err
-	}
-	if err := s.setUserInbounds(&u, inboundIDs); err != nil {
+	var u models.User
+	// One transaction so a user is never left half-created: the old code created
+	// the row, failed to attach inbounds, and reported an error for a user that
+	// already existed with no inbounds at all.
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := validateOutbound(tx, outboundID); err != nil {
+			return err
+		}
+		u = models.User{Name: name, UUID: genUUID(), Password: genPassword(), SubToken: genToken(), OutboundID: outboundID}
+		if err := tx.Create(&u).Error; err != nil {
+			return err
+		}
+		return setUserInbounds(tx, &u, inboundIDs)
+	})
+	if err != nil {
 		return models.User{}, err
 	}
 	return u, s.Regenerate()
 }
 
 func (s *Service) UpdateUser(id uint, name string, inboundIDs []uint, outboundID *uint) (models.User, error) {
-	var u models.User
-	if err := s.db.First(&u, id).Error; err != nil {
-		return models.User{}, ErrNotFound
-	}
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return models.User{}, ErrInvalidName
 	}
-	if err := s.validateOutbound(outboundID); err != nil {
-		return models.User{}, err
-	}
-	if err := s.db.Model(&u).Select("name", "outbound_id").Updates(map[string]any{"name": name, "outbound_id": outboundID}).Error; err != nil {
-		return models.User{}, err
-	}
-	if err := s.setUserInbounds(&u, inboundIDs); err != nil {
+	var u models.User
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&u, id).Error; err != nil {
+			return ErrNotFound
+		}
+		if err := validateOutbound(tx, outboundID); err != nil {
+			return err
+		}
+		if err := tx.Model(&u).Select("name", "outbound_id").
+			Updates(map[string]any{"name": name, "outbound_id": outboundID}).Error; err != nil {
+			return err
+		}
+		return setUserInbounds(tx, &u, inboundIDs)
+	})
+	if err != nil {
 		return models.User{}, err
 	}
 	return u, s.Regenerate()
@@ -265,11 +367,14 @@ func (s *Service) UpdateUser(id uint, name string, inboundIDs []uint, outboundID
 
 func (s *Service) ResetUserCreds(id uint) (models.User, error) {
 	var u models.User
-	if err := s.db.First(&u, id).Error; err != nil {
-		return models.User{}, ErrNotFound
-	}
-	u.UUID, u.Password, u.SubToken = genUUID(), genPassword(), genToken()
-	if err := s.db.Save(&u).Error; err != nil {
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&u, id).Error; err != nil {
+			return ErrNotFound
+		}
+		u.UUID, u.Password, u.SubToken = genUUID(), genPassword(), genToken()
+		return tx.Save(&u).Error
+	})
+	if err != nil {
 		return models.User{}, err
 	}
 	return u, s.Regenerate()
@@ -277,28 +382,32 @@ func (s *Service) ResetUserCreds(id uint) (models.User, error) {
 
 // BackfillUserTokens gives a SubToken to any pre-existing user that lacks one.
 func (s *Service) BackfillUserTokens() error {
-	var us []models.User
-	if err := s.db.Where("sub_token = '' OR sub_token IS NULL").Find(&us).Error; err != nil {
-		return err
-	}
-	for i := range us {
-		us[i].SubToken = genToken()
-		if err := s.db.Model(&us[i]).Update("sub_token", us[i].SubToken).Error; err != nil {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var us []models.User
+		if err := tx.Where("sub_token = '' OR sub_token IS NULL").Find(&us).Error; err != nil {
 			return err
 		}
-	}
-	return nil
+		for i := range us {
+			if err := tx.Model(&us[i]).Update("sub_token", genToken()).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (s *Service) DeleteUser(id uint) error {
-	var u models.User
-	if err := s.db.First(&u, id).Error; err != nil {
-		return ErrNotFound
-	}
-	if err := s.db.Model(&u).Association("Inbounds").Clear(); err != nil {
-		return err
-	}
-	if err := s.db.Delete(&u).Error; err != nil {
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var u models.User
+		if err := tx.First(&u, id).Error; err != nil {
+			return ErrNotFound
+		}
+		if err := tx.Model(&u).Association("Inbounds").Clear(); err != nil {
+			return err
+		}
+		return tx.Delete(&u).Error
+	})
+	if err != nil {
 		return err
 	}
 	return s.Regenerate()
@@ -361,7 +470,19 @@ func (s *Service) APIConfig() (ExperimentalConfig, error) {
 	return ExperimentalConfig{ClashAddr: clashAddr, ClashSecret: secret}, nil
 }
 
+// Regenerate rebuilds the sing-box config from the database and applies it.
+// Every failure here is an *ApplyError: the caller's database change is already
+// committed, so this is a "saved but not applied" condition, not a failed write.
 func (s *Service) Regenerate() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.regenerate(); err != nil {
+		return &ApplyError{Err: err}
+	}
+	return nil
+}
+
+func (s *Service) regenerate() error {
 	ins, err := s.listInbounds()
 	if err != nil {
 		return err

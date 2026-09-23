@@ -17,13 +17,14 @@ vi.mock("@/lib/api", () => ({
   listInbounds: () => listInboundsMock(),
   listOutbounds: vi.fn().mockResolvedValue([{ id: 5, tag: "proxyA", type: "socks5", server: "1.2.3.4", port: 1080, username: "", password: "" }]),
   createUser: (...a: unknown[]) => createUserMock(...a),
-  updateUser: vi.fn(),
-  resetUserCreds: vi.fn(),
+  updateUser: vi.fn().mockResolvedValue({}),
+  resetUserCreds: vi.fn().mockResolvedValue({}),
   deleteUser: (...a: unknown[]) => deleteUserMock(...a),
-  resetUserTraffic: vi.fn(),
+  resetUserTraffic: vi.fn().mockResolvedValue({}),
   getLiveTraffic: vi.fn(),
   getStatus: vi.fn().mockResolvedValue({ installed: true, version: "1.13.13", running: false, hasConfig: true }),
   logout: vi.fn(),
+  changePassword: vi.fn().mockResolvedValue(undefined),
   UnauthorizedError: class extends Error {},
 }));
 
@@ -33,7 +34,7 @@ beforeEach(() => {
     { id: 1, type: "vless-reality", tag: "v1", port: 8443, network: "tcp", publicInfo: {} },
   ]);
   createUserMock.mockReset().mockResolvedValue({ id: 1 });
-  deleteUserMock.mockReset().mockResolvedValue(undefined);
+  deleteUserMock.mockReset().mockResolvedValue({});
 });
 
 describe("UsersPage", () => {
@@ -89,6 +90,7 @@ describe("UsersPage", () => {
     ]);
     render(<UsersPage />);
     await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
+    expect(screen.getByText("采样流量")).toBeInTheDocument();
     expect(screen.getByText(/1\.0 KB/)).toBeInTheDocument();
     expect(screen.getByText(/1\.0 MB/)).toBeInTheDocument();
   });

@@ -15,15 +15,15 @@ type Inbound struct {
 }
 
 type User struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	Name      string    `gorm:"not null" json:"name"`
-	UUID      string    `gorm:"not null" json:"uuid"`
-	Password  string    `gorm:"not null" json:"password"`
-	SubToken  string    `gorm:"uniqueIndex" json:"subToken"`
-	UpBytes   int64     `gorm:"not null;default:0" json:"upBytes"`
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	Name       string    `gorm:"not null" json:"name"`
+	UUID       string    `gorm:"not null" json:"uuid"`
+	Password   string    `gorm:"not null" json:"password"`
+	SubToken   string    `gorm:"uniqueIndex" json:"subToken"`
+	UpBytes    int64     `gorm:"not null;default:0" json:"upBytes"`
 	DownBytes  int64     `gorm:"not null;default:0" json:"downBytes"`
-	OutboundID *uint    `json:"outboundId"`
-	Inbounds  []Inbound `gorm:"many2many:user_inbounds;" json:"-"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	OutboundID *uint     `json:"outboundId"`
+	Inbounds   []Inbound `gorm:"many2many:user_inbounds;" json:"-"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 }

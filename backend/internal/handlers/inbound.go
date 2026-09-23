@@ -65,7 +65,7 @@ func writeInboundCreateErr(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, inbound.ErrUnknownType), errors.Is(err, inbound.ErrInvalidTag):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	case errors.Is(err, inbound.ErrTagExists), errors.Is(err, inbound.ErrPortInUse):
+	case errors.Is(err, inbound.ErrTagExists), errors.Is(err, inbound.ErrPortInUse), errors.Is(err, inbound.ErrPortReserved):
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 	case errors.Is(err, inbound.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
@@ -81,11 +81,7 @@ func (h *InboundHandler) CreateInbound(c *gin.Context) {
 		return
 	}
 	in, err := h.ctrl.CreateInbound(b.Type, b.Tag, b.Port, b.Params)
-	if err != nil {
-		writeInboundCreateErr(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, in)
+	respondMutation(c, in, err, writeInboundCreateErr)
 }
 
 func (h *InboundHandler) UpdateInbound(c *gin.Context) {
@@ -100,11 +96,7 @@ func (h *InboundHandler) UpdateInbound(c *gin.Context) {
 		return
 	}
 	in, err := h.ctrl.UpdateInbound(id, b.Tag, b.Port, b.Params)
-	if err != nil {
-		writeInboundCreateErr(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, in)
+	respondMutation(c, in, err, writeInboundCreateErr)
 }
 
 func (h *InboundHandler) ResetKeys(c *gin.Context) {
@@ -114,11 +106,7 @@ func (h *InboundHandler) ResetKeys(c *gin.Context) {
 		return
 	}
 	in, err := h.ctrl.ResetInboundKeys(id)
-	if err != nil {
-		writeInboundCreateErr(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, in)
+	respondMutation(c, in, err, writeInboundCreateErr)
 }
 
 func (h *InboundHandler) DeleteInbound(c *gin.Context) {
@@ -127,20 +115,21 @@ func (h *InboundHandler) DeleteInbound(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad id"})
 		return
 	}
-	if err := h.ctrl.DeleteInbound(id); err != nil {
+	respondMutation(c, okBody(), h.ctrl.DeleteInbound(id), func(c *gin.Context, err error) {
 		if errors.Is(err, inbound.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
 }
 
 func (h *InboundHandler) Apply(c *gin.Context) {
+	// Unlike the mutation endpoints, this IS the apply operation, so a failure
+	// here is the user's answer — routed through writeStartError so an invalid
+	// config comes back as 400 + the `sing-box check` output rather than a 500.
 	if err := h.ctrl.Regenerate(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeStartError(c, err)
 		return
 	}
 	st, err := h.restarter.Restart()

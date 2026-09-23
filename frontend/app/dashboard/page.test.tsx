@@ -24,6 +24,7 @@ vi.mock("@/lib/api", () => ({
   listOutbounds: vi.fn().mockResolvedValue([]),
   listUsers: vi.fn().mockResolvedValue([]),
   logout: vi.fn(),
+  changePassword: vi.fn().mockResolvedValue(undefined),
   UnauthorizedError: class extends Error {},
 }));
 

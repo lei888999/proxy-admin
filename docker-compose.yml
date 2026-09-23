@@ -18,6 +18,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required - set it in .env}
       DEFAULT_ADMIN_USER: ${DEFAULT_ADMIN_USER:-admin}
       DEFAULT_ADMIN_PASS: ${DEFAULT_ADMIN_PASS:-mnice7082}
+      # Enable when the externally visible panel URL is HTTPS (including a TLS
+      # reverse proxy). Composed explicitly so .env is not merely build-time.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # Comma-separated proxy CIDRs/IPs allowed to supply X-Forwarded-For.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
     volumes:
       - singbox_admin_data:/data
 

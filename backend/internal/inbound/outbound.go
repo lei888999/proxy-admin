@@ -3,6 +3,8 @@ package inbound
 import (
 	"strings"
 
+	"gorm.io/gorm"
+
 	"singbox-admin/internal/models"
 )
 
@@ -60,61 +62,78 @@ func (s *Service) CreateOutbound(typ, tag, server string, port uint16, username,
 	if err != nil {
 		return models.Outbound{}, err
 	}
-	var count int64
-	s.db.Model(&models.Outbound{}).Where("tag = ?", tag).Count(&count)
-	if count > 0 {
-		return models.Outbound{}, ErrTagExists
-	}
-	o := models.Outbound{Tag: tag, Type: typ, Server: server, Port: port, Username: username, Password: password}
-	if err := s.db.Create(&o).Error; err != nil {
+	var o models.Outbound
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&models.Outbound{}).Where("tag = ?", tag).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrTagExists
+		}
+		o = models.Outbound{Tag: tag, Type: typ, Server: server, Port: port, Username: username, Password: password}
+		return tx.Create(&o).Error
+	})
+	if err != nil {
 		return models.Outbound{}, err
 	}
 	return o, s.Regenerate()
 }
 
 func (s *Service) UpdateOutbound(id uint, typ, tag, server string, port uint16, username, password string) (models.Outbound, error) {
-	var o models.Outbound
-	if err := s.db.First(&o, id).Error; err != nil {
-		return models.Outbound{}, ErrNotFound
-	}
 	typ, tag, server, err := validateOutboundFields(typ, tag, server, port)
 	if err != nil {
 		return models.Outbound{}, err
 	}
-	var count int64
-	s.db.Model(&models.Outbound{}).Where("tag = ? AND id <> ?", tag, id).Count(&count)
-	if count > 0 {
-		return models.Outbound{}, ErrTagExists
-	}
-	o.Type, o.Tag, o.Server, o.Port, o.Username, o.Password = typ, tag, server, port, username, password
-	if err := s.db.Save(&o).Error; err != nil {
+	var o models.Outbound
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&o, id).Error; err != nil {
+			return ErrNotFound
+		}
+		var count int64
+		if err := tx.Model(&models.Outbound{}).Where("tag = ? AND id <> ?", tag, id).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrTagExists
+		}
+		o.Type, o.Tag, o.Server, o.Port, o.Username, o.Password = typ, tag, server, port, username, password
+		return tx.Save(&o).Error
+	})
+	if err != nil {
 		return models.Outbound{}, err
 	}
 	return o, s.Regenerate()
 }
 
 func (s *Service) DeleteOutbound(id uint) error {
-	var o models.Outbound
-	if err := s.db.First(&o, id).Error; err != nil {
-		return ErrNotFound
-	}
-	// Referencing users fall back to direct.
-	if err := s.db.Model(&models.User{}).Where("outbound_id = ?", id).Update("outbound_id", nil).Error; err != nil {
-		return err
-	}
-	if err := s.db.Delete(&o).Error; err != nil {
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var o models.Outbound
+		if err := tx.First(&o, id).Error; err != nil {
+			return ErrNotFound
+		}
+		// Referencing users fall back to direct.
+		if err := tx.Model(&models.User{}).Where("outbound_id = ?", id).Update("outbound_id", nil).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&o).Error
+	})
+	if err != nil {
 		return err
 	}
 	return s.Regenerate()
 }
 
-// validateOutbound checks that an optional assigned outbound exists.
-func (s *Service) validateOutbound(id *uint) error {
+// validateOutbound checks that an optional assigned outbound exists, within the
+// caller's transaction so the check cannot be invalidated before the write.
+func validateOutbound(tx *gorm.DB, id *uint) error {
 	if id == nil {
 		return nil
 	}
 	var count int64
-	s.db.Model(&models.Outbound{}).Where("id = ?", *id).Count(&count)
+	if err := tx.Model(&models.Outbound{}).Where("id = ?", *id).Count(&count).Error; err != nil {
+		return err
+	}
 	if count == 0 {
 		return ErrInvalidOutbound
 	}

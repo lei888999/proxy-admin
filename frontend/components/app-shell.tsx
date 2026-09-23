@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { logout, UnauthorizedError } from "@/lib/api";
+import { logout, changePassword, UnauthorizedError } from "@/lib/api";
 import { useStatus } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/modal";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -18,6 +21,7 @@ import {
 import {
   User,
   LogOut,
+  KeyRound,
   LayoutDashboard,
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -66,6 +70,45 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (error instanceof UnauthorizedError) router.push("/login");
   }, [error, router]);
+
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwOld, setPwOld] = useState("");
+  const [pwNew, setPwNew] = useState("");
+  const [pwConfirm, setPwConfirm] = useState("");
+  const [pwError, setPwError] = useState("");
+  const [pwDone, setPwDone] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+
+  function openPasswordModal() {
+    setPwOld("");
+    setPwNew("");
+    setPwConfirm("");
+    setPwError("");
+    setPwDone("");
+    setPwOpen(true);
+  }
+
+  async function onChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPwError("");
+    setPwDone("");
+    if (pwNew !== pwConfirm) {
+      setPwError("两次输入的新密码不一致");
+      return;
+    }
+    setPwBusy(true);
+    try {
+      await changePassword(pwOld, pwNew);
+      setPwDone("密码已修改，其他设备上的登录已失效。");
+      setPwOld("");
+      setPwNew("");
+      setPwConfirm("");
+    } catch (err) {
+      setPwError(err instanceof Error ? err.message : "修改密码失败");
+    } finally {
+      setPwBusy(false);
+    }
+  }
 
   async function onLogout() {
     await logout();
@@ -138,6 +181,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <DropdownMenuLabel>管理员</DropdownMenuLabel>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={openPasswordModal}>
+                <KeyRound />
+                修改密码
+              </DropdownMenuItem>
               <DropdownMenuItem variant="destructive" onClick={onLogout}>
                 <LogOut />
                 退出登录
@@ -149,6 +196,52 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
       </div>
+
+      <Modal open={pwOpen} onClose={() => setPwOpen(false)} title="修改密码">
+        <form onSubmit={onChangePassword} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="old-password" className="text-xs text-muted-foreground">当前密码</Label>
+            <Input
+              id="old-password"
+              type="password"
+              autoComplete="current-password"
+              value={pwOld}
+              onChange={(e) => setPwOld(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="new-password" className="text-xs text-muted-foreground">新密码</Label>
+            <Input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              value={pwNew}
+              onChange={(e) => setPwNew(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">至少 8 个字符。</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirm-password" className="text-xs text-muted-foreground">确认新密码</Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              value={pwConfirm}
+              onChange={(e) => setPwConfirm(e.target.value)}
+            />
+          </div>
+          {pwError && <p className="text-sm text-destructive">{pwError}</p>}
+          {pwDone && <p className="text-sm text-muted-foreground">{pwDone}</p>}
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" className="rounded-full" onClick={() => setPwOpen(false)}>
+              关闭
+            </Button>
+            <Button type="submit" className="rounded-full" disabled={pwBusy}>
+              {pwBusy ? "提交中…" : "修改密码"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

@@ -3,8 +3,8 @@ package database
 import (
 	"testing"
 
-	"singbox-admin/internal/models"
 	"golang.org/x/crypto/bcrypt"
+	"singbox-admin/internal/models"
 )
 
 func TestInitCreatesDefaultAdmin(t *testing.T) {

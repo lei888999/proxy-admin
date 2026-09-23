@@ -21,8 +21,10 @@ export default function LoginPage() {
     try {
       await login(username, password);
       router.push("/dashboard");
-    } catch {
-      setError("用户名或密码错误");
+    } catch (err) {
+      // Show the server's message so a throttled login says how long to wait
+      // instead of looking like a wrong password.
+      setError(err instanceof Error ? err.message : "用户名或密码错误");
     } finally {
       setLoading(false);
     }

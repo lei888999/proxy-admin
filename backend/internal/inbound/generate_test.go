@@ -60,23 +60,63 @@ func TestGeneratePicksCredByProtocol(t *testing.T) {
 	if dr, ok := route["default_domain_resolver"].(map[string]any); !ok || dr["server"] != "local" {
 		t.Fatalf("route.default_domain_resolver missing/wrong: %v", route["default_domain_resolver"])
 	}
-	// One route rule per user, each targeting exactly one auth_user so the
-	// Clash-API rule string is unambiguous for traffic attribution.
+	// The China rules must occur before the catch-all per-user outbound and all
+	// rules must retain auth_user for connection-level traffic attribution.
 	rules := route["rules"].([]any)
-	userRoute := map[string]string{} // u<id> -> outbound
+	var u7Private, u7China, u7Fallback, u8Direct bool
 	for _, r := range rules {
 		m := r.(map[string]any)
-		au := m["auth_user"].([]any)
-		if len(au) != 1 {
-			t.Fatalf("each route rule must target exactly one user, got %v", au)
+		au, ok := m["auth_user"].([]any)
+		if !ok || len(au) != 1 {
+			t.Fatalf("each route rule must target exactly one user, got %v", m["auth_user"])
 		}
-		userRoute[au[0].(string)] = m["outbound"].(string)
+		switch au[0].(string) {
+		case "u7":
+			switch {
+			case m["ip_is_private"] == true && m["outbound"] == "direct":
+				u7Private = true
+			case m["rule_set"] != nil && m["outbound"] == "direct":
+				sets := m["rule_set"].([]any)
+				if len(sets) != 2 || sets[0] != geositeCNTag || sets[1] != geoipCNTag {
+					t.Fatalf("u7 China rule sets wrong: %v", sets)
+				}
+				u7China = true
+			case m["outbound"] == "proxyA":
+				u7Fallback = true
+			}
+		case "u8":
+			u8Direct = m["outbound"] == "direct"
+		}
 	}
-	if userRoute["u7"] != "proxyA" {
-		t.Fatalf("u7 should route to proxyA: %v", userRoute)
+	if !u7Private || !u7China || !u7Fallback {
+		t.Fatalf("u7 direct-China route chain missing: private=%v cn=%v fallback=%v", u7Private, u7China, u7Fallback)
 	}
-	if userRoute["u8"] != "direct" {
-		t.Fatalf("u8 (no outbound) should route to direct: %v", userRoute)
+	if !u8Direct {
+		t.Fatal("u8 (no outbound) should retain its explicit direct rule")
+	}
+
+	ruleSets := route["rule_set"].([]any)
+	if len(ruleSets) != 2 {
+		t.Fatalf("rule_set count=%d, want 2", len(ruleSets))
+	}
+	for _, raw := range ruleSets {
+		rs := raw.(map[string]any)
+		if rs["type"] != "remote" || rs["format"] != "binary" || rs["download_detour"] != "direct" {
+			t.Fatalf("invalid remote rule set config: %v", rs)
+		}
+	}
+	if ruleSets[0].(map[string]any)["tag"] != geositeCNTag || ruleSets[0].(map[string]any)["url"] != geositeCNURL {
+		t.Fatalf("geosite rule set wrong: %v", ruleSets[0])
+	}
+	if ruleSets[1].(map[string]any)["tag"] != geoipCNTag || ruleSets[1].(map[string]any)["url"] != geoipCNURL {
+		t.Fatalf("geoip rule set wrong: %v", ruleSets[1])
+	}
+
+	if len(rules) != 4 {
+		t.Fatalf("route rule count=%d, want 4", len(rules))
+	}
+	if rules[0].(map[string]any)["ip_is_private"] != true || rules[1].(map[string]any)["rule_set"] == nil || rules[2].(map[string]any)["outbound"] != "proxyA" {
+		t.Fatalf("u7 route order must be private -> China -> outbound, got %v", rules)
 	}
 
 	dns := cfg["dns"].(map[string]any)
@@ -107,7 +147,18 @@ func TestGeneratePicksCredByProtocol(t *testing.T) {
 		t.Fatal("dns detour server for proxyA missing or not in new tls format")
 	}
 	dnsRules := dns["rules"].([]any)
-	if len(dnsRules) != 1 || dnsRules[0].(map[string]any)["server"] != "dns-proxyA" {
-		t.Fatalf("dns rule wrong: %v", dnsRules)
+	if len(dnsRules) != 2 {
+		t.Fatalf("dns rule count=%d, want 2: %v", len(dnsRules), dnsRules)
+	}
+	firstDNSRule := dnsRules[0].(map[string]any)
+	if firstDNSRule["server"] != "local" {
+		t.Fatalf("China DNS must use local/direct resolver: %v", firstDNSRule)
+	}
+	cnSets := firstDNSRule["rule_set"].([]any)
+	if len(cnSets) != 1 || cnSets[0] != geositeCNTag {
+		t.Fatalf("China DNS rule set wrong: %v", cnSets)
+	}
+	if dnsRules[1].(map[string]any)["server"] != "dns-proxyA" {
+		t.Fatalf("per-user DNS rule wrong: %v", dnsRules[1])
 	}
 }

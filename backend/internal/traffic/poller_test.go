@@ -42,14 +42,17 @@ func TestPollOnceAccumulatesDeltas(t *testing.T) {
 	if err := p.pollOnce(context.Background()); err != nil {
 		t.Fatalf("pollOnce: %v", err)
 	}
-	if st.up[7] != 100 || st.down[7] != 200 {
-		t.Fatalf("after tick1 up=%d down=%d, want 100/200", st.up[7], st.down[7])
+	if st.up[7] != 0 || st.down[7] != 0 {
+		t.Fatalf("sample must be batched before flush, got %d/%d", st.up[7], st.down[7])
 	}
 	if err := p.pollOnce(context.Background()); err != nil {
 		t.Fatalf("pollOnce: %v", err)
 	}
+	if err := p.flush(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
 	if st.up[7] != 150 || st.down[7] != 200 {
-		t.Fatalf("after tick2 up=%d down=%d, want 150/200 (only the delta is added)", st.up[7], st.down[7])
+		t.Fatalf("after flush up=%d down=%d, want 150/200 (only the delta is added)", st.up[7], st.down[7])
 	}
 }
 
@@ -63,11 +66,35 @@ func TestPollOnceNewConnectionAndPrune(t *testing.T) {
 	p := NewPoller(fc, st, 0, nil)
 	_ = p.pollOnce(context.Background())
 	_ = p.pollOnce(context.Background())
+	_ = p.flush()
 	if st.up[7] != 130 {
 		t.Fatalf("up=%d, want 130 (100 + new conn 30)", st.up[7])
 	}
 	if _, ok := p.lastSeen["c1"]; ok {
 		t.Fatal("closed connection c1 should be pruned from lastSeen")
+	}
+}
+
+type failingStore struct {
+	calls int
+	err   error
+}
+
+func (s *failingStore) AddTraffic(uint, int64, int64) error {
+	s.calls++
+	return s.err
+}
+
+// Failed writes remain pending for a later flush, rather than disappearing.
+func TestFlushRetainsFailedUserDelta(t *testing.T) {
+	st := &failingStore{err: context.DeadlineExceeded}
+	p := NewPoller(&fakeConns{}, st, 0, nil)
+	p.pending[7] = counters{up: 12, down: 34}
+	if err := p.flush(); err == nil {
+		t.Fatal("flush should return the store error")
+	}
+	if got := p.pending[7]; got != (counters{up: 12, down: 34}) {
+		t.Fatalf("pending = %+v, want retained delta", got)
 	}
 }
 
