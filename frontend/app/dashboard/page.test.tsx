@@ -14,12 +14,14 @@ const startMock = vi.fn();
 const stopMock = vi.fn();
 const applyMock = vi.fn();
 const getLiveTrafficMock = vi.fn();
+const probeOutboundsMock = vi.fn();
 vi.mock("@/lib/api", () => ({
   getStatus: () => getStatusMock(),
   startSingbox: () => startMock(),
   stopSingbox: () => stopMock(),
   applySingbox: () => applyMock(),
   getLiveTraffic: () => getLiveTrafficMock(),
+  probeOutbounds: () => probeOutboundsMock(),
   listInbounds: vi.fn().mockResolvedValue([]),
   listOutbounds: vi.fn().mockResolvedValue([]),
   listUsers: vi.fn().mockResolvedValue([]),
@@ -35,6 +37,7 @@ beforeEach(() => {
   stopMock.mockReset();
   applyMock.mockReset();
   getLiveTrafficMock.mockReset().mockResolvedValue({ up: 1024, down: 2048 });
+  probeOutboundsMock.mockReset().mockResolvedValue([]);
 });
 
 describe("DashboardPage", () => {

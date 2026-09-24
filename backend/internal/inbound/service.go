@@ -23,6 +23,7 @@ var (
 	ErrPortReserved    = errors.New("port reserved by the panel")
 	ErrInvalidType     = errors.New("invalid type")
 	ErrInvalidOutbound = errors.New("invalid outbound")
+	ErrOutboundInUse   = errors.New("outbound in use")
 )
 
 // ApplyError marks a failure that happened AFTER the database change committed:

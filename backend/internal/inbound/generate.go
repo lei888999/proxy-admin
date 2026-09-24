@@ -182,6 +182,11 @@ func Generate(inbounds []models.Inbound, outbounds []models.Outbound, exp Experi
 			"default_domain_resolver": map[string]any{"server": "local"},
 		},
 		"experimental": map[string]any{
+			"cache_file": map[string]any{
+				"enabled":      true,
+				"path":         "cache.db",
+				"store_fakeip": true,
+			},
 			"clash_api": map[string]any{
 				"external_controller": exp.ClashAddr,
 				"secret":              exp.ClashSecret,

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"singbox-admin/internal/inbound"
 	"singbox-admin/internal/traffic"
 )
 
@@ -33,6 +34,38 @@ func TestTrafficLiveReturnsCachedSnapshot(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	if body.Up != 1000 || body.Down != 2000 {
+		t.Fatalf("body=%+v", body)
+	}
+}
+
+type fixedOutboundViews struct {
+	views []inbound.OutboundView
+	err   error
+}
+
+func (f fixedOutboundViews) ListOutboundViews() ([]inbound.OutboundView, error) {
+	return f.views, f.err
+}
+
+func TestDiagnosticsOutboundsReturnsScopeAndProbes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	h := NewDiagnosticsHandler(fixedOutboundViews{})
+	r.GET("/api/traffic/diagnostics/outbounds", h.Outbounds)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/traffic/diagnostics/outbounds", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("code=%d", w.Code)
+	}
+	var body struct {
+		Scope  string           `json:"scope"`
+		Probes []map[string]any `json:"probes"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Scope != "vps-to-upstream-tcp" || len(body.Probes) != 0 {
 		t.Fatalf("body=%+v", body)
 	}
 }

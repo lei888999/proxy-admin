@@ -38,6 +38,8 @@ func writeOutboundErr(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, inbound.ErrTagExists):
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case errors.Is(err, inbound.ErrOutboundInUse):
+		c.JSON(http.StatusConflict, gin.H{"error": "出站仍被用户使用，请先改为其他出站或直连"})
 	case errors.Is(err, inbound.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 	default:

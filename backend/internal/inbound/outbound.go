@@ -112,9 +112,14 @@ func (s *Service) DeleteOutbound(id uint) error {
 		if err := tx.First(&o, id).Error; err != nil {
 			return ErrNotFound
 		}
-		// Referencing users fall back to direct.
-		if err := tx.Model(&models.User{}).Where("outbound_id = ?", id).Update("outbound_id", nil).Error; err != nil {
+		var users int64
+		if err := tx.Model(&models.User{}).Where("outbound_id = ?", id).Count(&users).Error; err != nil {
 			return err
+		}
+		// Falling back to direct would silently expose the client's address after
+		// an admin deletes a live egress. Require reassignment first.
+		if users > 0 {
+			return ErrOutboundInUse
 		}
 		return tx.Delete(&o).Error
 	})

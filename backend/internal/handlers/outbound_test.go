@@ -67,3 +67,19 @@ func TestOutboundCreateBadType(t *testing.T) {
 		t.Fatalf("code=%d, want 400", w.Code)
 	}
 }
+
+func TestOutboundDeleteInUseReturnsConflict(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	h := NewOutboundHandler(&fakeOutboundCtrl{err: inbound.ErrOutboundInUse})
+	r.DELETE("/api/outbounds/:id", h.Delete)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/api/outbounds/1", nil))
+	if w.Code != http.StatusConflict {
+		t.Fatalf("code=%d body=%s", w.Code, w.Body.String())
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("先改为其他出站或直连")) {
+		t.Fatalf("body=%s", w.Body.String())
+	}
+}

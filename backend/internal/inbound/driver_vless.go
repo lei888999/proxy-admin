@@ -12,6 +12,8 @@ type vlessSettings struct {
 	Flow              string `json:"flow"`
 }
 
+const defaultVLESSHandshake = "www.cloudflare.com"
+
 type vlessReality struct{ kg KeyGen }
 
 func init() { register(vlessReality{kg: NewKeyGen()}) }
@@ -28,7 +30,7 @@ func (d vlessReality) BuildSettings(params map[string]any) (string, error) {
 	}
 	s := vlessSettings{
 		RealityPrivateKey: priv, RealityPublicKey: pub, ShortID: d.kg.ShortID(),
-		Handshake: "www.microsoft.com", HandshakePort: 443, Flow: "xtls-rprx-vision",
+		Handshake: defaultVLESSHandshake, HandshakePort: 443, Flow: "xtls-rprx-vision",
 	}
 	if v, ok := params["handshake"].(string); ok && v != "" {
 		s.Handshake = v
@@ -74,6 +76,13 @@ func (vlessReality) PublicInfo(settings string) (map[string]any, error) {
 }
 
 func (vlessReality) CredentialKind() string { return "uuid" }
+
+func (vlessReality) Schema() []Field {
+	return []Field{
+		{Name: "handshake", Label: "握手域名", Type: "text", Default: defaultVLESSHandshake, Required: true},
+		{Name: "handshakePort", Label: "握手端口", Type: "number", Default: 443, Required: true},
+	}
+}
 
 func (vlessReality) UpdateSettings(existing string, params map[string]any) (string, error) {
 	var s vlessSettings

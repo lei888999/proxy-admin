@@ -36,19 +36,19 @@ func TestOutboundCRUD(t *testing.T) {
 	}
 }
 
-func TestDeleteOutboundNullsUsers(t *testing.T) {
+func TestDeleteOutboundRejectsReferencedUsers(t *testing.T) {
 	s, _ := newTestService(t)
 	o, _ := s.CreateOutbound("http", "proxyA", "1.2.3.4", 8080, "", "")
 	u, err := s.CreateUser("alice", nil, &o.ID)
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
-	if err := s.DeleteOutbound(o.ID); err != nil {
-		t.Fatalf("DeleteOutbound: %v", err)
+	if err := s.DeleteOutbound(o.ID); err != ErrOutboundInUse {
+		t.Fatalf("DeleteOutbound err=%v, want ErrOutboundInUse", err)
 	}
 	var got models.User
 	s.db.First(&got, u.ID)
-	if got.OutboundID != nil {
-		t.Fatalf("user outbound not nulled: %v", got.OutboundID)
+	if got.OutboundID == nil || *got.OutboundID != o.ID {
+		t.Fatalf("user outbound changed unexpectedly: %v", got.OutboundID)
 	}
 }

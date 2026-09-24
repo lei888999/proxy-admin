@@ -120,6 +120,15 @@ export interface InboundType {
   label: string;
   network: string;
   defaultPort: number;
+  fields: InboundField[];
+}
+
+export interface InboundField {
+  name: string;
+  label: string;
+  type: "text" | "number";
+  default?: string | number;
+  required?: boolean;
 }
 
 export interface Inbound {
@@ -154,6 +163,22 @@ export interface Outbound {
   port: number;
   username: string;
   password: string;
+}
+
+export interface OutboundProbe {
+  tag: string;
+  server: string;
+  port: number;
+  reachable: boolean;
+  latencyMs?: number;
+  error?: string;
+}
+
+export async function probeOutbounds(): Promise<OutboundProbe[]> {
+  const res = await request("/api/traffic/diagnostics/outbounds");
+  if (!res.ok) throw await errorFrom(res, "线路检测失败");
+  const body = await res.json();
+  return body.probes as OutboundProbe[];
 }
 
 export async function listOutbounds(): Promise<Outbound[]> {

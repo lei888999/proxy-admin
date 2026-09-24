@@ -9,6 +9,7 @@ import {
   listUsers,
   getConfig,
   getLiveTraffic,
+  probeOutbounds,
 } from "@/lib/api";
 
 // Stable cache keys, one per GET endpoint. Mutations revalidate by these.
@@ -20,6 +21,7 @@ export const KEYS = {
   users: "users",
   config: "config",
   liveTraffic: "live-traffic",
+  outboundProbes: "outbound-probes",
 } as const;
 
 // dedupingInterval:0 keeps the cache (instant render on revisit + background
@@ -47,6 +49,9 @@ export function useConfig() {
 }
 export function useLiveTraffic() {
   return useSWR(KEYS.liveTraffic, getLiveTraffic, { ...common, refreshInterval: 3000 });
+}
+export function useOutboundProbes() {
+  return useSWR(KEYS.outboundProbes, probeOutbounds, common);
 }
 
 // revalidate revalidates one cache key from anywhere (used after mutations).

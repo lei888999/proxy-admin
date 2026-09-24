@@ -8,14 +8,20 @@ import (
 
 func TestRegistryTypes(t *testing.T) {
 	ts := Types()
-	if len(ts) != 2 {
-		t.Fatalf("types = %d, want 2", len(ts))
+	if len(ts) != 4 {
+		t.Fatalf("types = %d, want 4", len(ts))
 	}
 	if ts[0].Type != "vless-reality" || ts[0].Network != "tcp" || ts[0].DefaultPort != 4443 {
 		t.Fatalf("vless typeinfo: %+v", ts[0])
 	}
 	if ts[1].Type != "hysteria2" || ts[1].Network != "udp" || ts[1].DefaultPort != 8443 {
 		t.Fatalf("hy2 typeinfo: %+v", ts[1])
+	}
+	if len(ts[0].Fields) != 2 || ts[0].Fields[0].Name != "handshake" {
+		t.Fatalf("vless schema missing: %+v", ts[0].Fields)
+	}
+	if len(ts[1].Fields) != 3 || ts[1].Fields[0].Name != "serverName" {
+		t.Fatalf("hysteria2 schema missing: %+v", ts[1].Fields)
 	}
 }
 
@@ -49,6 +55,21 @@ func TestVlessDriver(t *testing.T) {
 	}
 	if strings.Contains(toJSON(pi), "realityPrivateKey") {
 		t.Fatal("publicInfo leaked private key")
+	}
+}
+
+func TestVlessDefaultHandshakeUsesCompatibleTarget(t *testing.T) {
+	d, _ := Get("vless-reality")
+	s, err := d.BuildSettings(nil)
+	if err != nil {
+		t.Fatalf("BuildSettings: %v", err)
+	}
+	pi, err := d.PublicInfo(s)
+	if err != nil {
+		t.Fatalf("PublicInfo: %v", err)
+	}
+	if pi["serverName"] != defaultVLESSHandshake {
+		t.Fatalf("default handshake=%v, want %s", pi["serverName"], defaultVLESSHandshake)
 	}
 }
 
@@ -124,6 +145,30 @@ func TestHy2ClashProxy(t *testing.T) {
 	}
 	if strings.Contains(toJSON(p), "PEM") || strings.Contains(toJSON(p), "BEGIN") {
 		t.Fatal("clash proxy leaked TLS cert or key material")
+	}
+}
+
+func TestPasswordTLSDrivers(t *testing.T) {
+	for _, typ := range []string{"trojan", "anytls"} {
+		d, ok := Get(typ)
+		if !ok {
+			t.Fatalf("driver %s not registered", typ)
+		}
+		s, err := d.BuildSettings(map[string]any{"serverName": "edge.example.com"})
+		if err != nil {
+			t.Fatalf("%s BuildSettings: %v", typ, err)
+		}
+		in, err := d.BuildInbound("edge", 443, s, []Cred{{Name: "u1", Credential: "secret"}})
+		if err != nil || in["type"] != typ {
+			t.Fatalf("%s BuildInbound: %v %+v", typ, err, in)
+		}
+		p, err := d.ClashProxy("edge", "vps.example.com", 443, s, Cred{Credential: "secret"})
+		if err != nil || p["type"] != typ || p["password"] != "secret" {
+			t.Fatalf("%s ClashProxy: %v %+v", typ, err, p)
+		}
+		if strings.Contains(toJSON(p), "BEGIN") || strings.Contains(toJSON(p), "keyPEM") {
+			t.Fatalf("%s proxy leaked certificate material", typ)
+		}
 	}
 }
 

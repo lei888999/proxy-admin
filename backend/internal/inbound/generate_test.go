@@ -161,4 +161,9 @@ func TestGeneratePicksCredByProtocol(t *testing.T) {
 	if dnsRules[1].(map[string]any)["server"] != "dns-proxyA" {
 		t.Fatalf("per-user DNS rule wrong: %v", dnsRules[1])
 	}
+	experimental := cfg["experimental"].(map[string]any)
+	cache := experimental["cache_file"].(map[string]any)
+	if cache["enabled"] != true || cache["store_fakeip"] != true || cache["path"] != "cache.db" {
+		t.Fatalf("cache file must persist rule/fake-ip state: %v", cache)
+	}
 }

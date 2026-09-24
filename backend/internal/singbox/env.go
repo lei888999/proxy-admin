@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -71,6 +72,11 @@ func (e *osEnv) Spawn(logPath, bin, configPath string) (int, error) {
 	}
 	defer f.Close()
 	cmd := exec.Command(bin, "run", "-c", configPath)
+	// sing-box resolves relative paths such as experimental.cache_file.path from
+	// its working directory. Keep those state files beside config.json so the
+	// rule-set/fake-IP cache survives restarts and is covered by the persistent
+	// singbox directory in both native and Docker deployments.
+	cmd.Dir = filepath.Dir(configPath)
 	cmd.Stdout = f
 	cmd.Stderr = f
 	// Detach from the panel's process group so the panel restarting/exiting

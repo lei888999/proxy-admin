@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  createInbound, updateInbound, resetInboundKeys, deleteInbound, Inbound,
+  createInbound, updateInbound, resetInboundKeys, deleteInbound, Inbound, InboundType,
 } from "@/lib/api";
 import { useInbounds, useInboundTypes } from "@/lib/hooks";
 import { AppShell } from "@/components/app-shell";
@@ -22,18 +22,20 @@ type FormState = {
   type: string;
   tag: string;
   port: string;
-  handshake: string;
-  handshakePort: string;
-  sni: string;
-  up: string;
-  down: string;
+  params: Record<string, string | number>;
 };
 
-const emptyForm: FormState = {
-  type: "vless-reality", tag: "", port: "4443",
-  handshake: "www.microsoft.com", handshakePort: "443",
-  sni: "bing.com", up: "100", down: "100",
+const fallbackType: InboundType = {
+  type: "vless-reality", label: "VLESS-Reality", network: "tcp", defaultPort: 4443,
+  fields: [
+    { name: "handshake", label: "握手域名", type: "text", default: "www.cloudflare.com" },
+    { name: "handshakePort", label: "握手端口", type: "number", default: 443 },
+  ],
 };
+
+function defaultsFor(type: InboundType | undefined): Record<string, string | number> {
+  return Object.fromEntries((type?.fields ?? []).map((f) => [f.name, f.default ?? ""]));
+}
 
 export default function InboundsPage() {
   const { data: inbounds = [], mutate: refresh } = useInbounds();
@@ -61,25 +63,23 @@ export default function InboundsPage() {
 
   function openCreate() {
     setError("");
-    setForm({ ...emptyForm });
+    const type = types[0] ?? fallbackType;
+    setForm({ type: type.type, tag: "", port: String(type.defaultPort), params: defaultsFor(type) });
   }
   function openEdit(ib: Inbound) {
     setError("");
-    const pi = ib.publicInfo;
+    const type = types.find((t) => t.type === ib.type) ?? fallbackType;
+    const params = Object.fromEntries((type.fields ?? []).map((f) => [f.name, String(ib.publicInfo[f.name] ?? f.default ?? "")]));
     setForm({
       id: ib.id, type: ib.type, tag: ib.tag, port: String(ib.port),
-      handshake: String(pi.serverName ?? "www.microsoft.com"),
-      handshakePort: String(pi.handshakePort ?? "443"),
-      sni: String(pi.serverName ?? "bing.com"),
-      up: String(pi.upMbps ?? "100"),
-      down: String(pi.downMbps ?? "100"),
+      params,
     });
   }
 
   function setType(t: string | null) {
     if (!form || !t) return;
     const info = types.find((x) => x.type === t);
-    setForm({ ...form, type: t, port: info ? String(info.defaultPort) : form.port });
+    setForm({ ...form, type: t, port: info ? String(info.defaultPort) : form.port, params: defaultsFor(info) });
   }
 
   async function submit(e: React.FormEvent) {
@@ -87,10 +87,13 @@ export default function InboundsPage() {
     if (!form) return;
     setBusy(true);
     setError("");
-    const params: Record<string, unknown> =
-      form.type === "hysteria2"
-        ? { serverName: form.sni, upMbps: Number(form.up), downMbps: Number(form.down) }
-        : { handshake: form.handshake, handshakePort: Number(form.handshakePort) };
+    const type = types.find((t) => t.type === form.type) ?? fallbackType;
+    const params: Record<string, unknown> = Object.fromEntries(
+      (type.fields ?? []).map((field) => [
+        field.name,
+        field.type === "number" ? Number(form.params[field.name]) : String(form.params[field.name] ?? ""),
+      ]),
+    );
     try {
       const res = form.id
         ? await updateInbound(form.id, form.tag, Number(form.port), params)
@@ -228,33 +231,20 @@ export default function InboundsPage() {
                 <Input id="port" value={form.port} onChange={(e) => setForm({ ...form, port: e.target.value })} />
               </div>
             </div>
-            {form.type === "hysteria2" ? (
-              <div className="flex gap-4">
-                <div className="flex-1 space-y-2">
-                  <Label htmlFor="sni" className="text-xs text-muted-foreground">SNI</Label>
-                  <Input id="sni" value={form.sni} onChange={(e) => setForm({ ...form, sni: e.target.value })} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {(types.find((t) => t.type === form.type)?.fields ?? fallbackType.fields).map((field) => (
+                <div key={field.name} className="space-y-2">
+                  <Label htmlFor={`param-${field.name}`} className="text-xs text-muted-foreground">{field.label}</Label>
+                  <Input
+                    id={`param-${field.name}`}
+                    type={field.type === "number" ? "number" : "text"}
+                    value={String(form.params[field.name] ?? "")}
+                    required={field.required}
+                    onChange={(e) => setForm({ ...form, params: { ...form.params, [field.name]: e.target.value } })}
+                  />
                 </div>
-                <div className="w-24 space-y-2">
-                  <Label htmlFor="up" className="text-xs text-muted-foreground">上行</Label>
-                  <Input id="up" value={form.up} onChange={(e) => setForm({ ...form, up: e.target.value })} />
-                </div>
-                <div className="w-24 space-y-2">
-                  <Label htmlFor="down" className="text-xs text-muted-foreground">下行</Label>
-                  <Input id="down" value={form.down} onChange={(e) => setForm({ ...form, down: e.target.value })} />
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-4">
-                <div className="flex-1 space-y-2">
-                  <Label htmlFor="hs" className="text-xs text-muted-foreground">握手域名</Label>
-                  <Input id="hs" value={form.handshake} onChange={(e) => setForm({ ...form, handshake: e.target.value })} />
-                </div>
-                <div className="w-28 space-y-2">
-                  <Label htmlFor="hsp" className="text-xs text-muted-foreground">握手端口</Label>
-                  <Input id="hsp" value={form.handshakePort} onChange={(e) => setForm({ ...form, handshakePort: e.target.value })} />
-                </div>
-              </div>
-            )}
+              ))}
+            </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="outline" className="rounded-full" onClick={() => setForm(null)}>取消</Button>

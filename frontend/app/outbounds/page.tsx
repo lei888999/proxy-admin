@@ -175,7 +175,7 @@ export default function OutboundsPage() {
 
       <Modal open={confirmDelete !== null} onClose={() => setConfirmDelete(null)} title="删除出站">
         <p className="mb-4 text-sm text-muted-foreground">
-          确定删除出站 <span className="font-mono">{confirmDelete?.tag}</span>？引用它的用户将回退为直连。
+          确定删除出站 <span className="font-mono">{confirmDelete?.tag}</span>？仍被用户使用的出站需要先解除分配。
         </p>
         <div className="flex justify-end gap-3">
           <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(null)}>取消</Button>

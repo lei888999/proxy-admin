@@ -109,6 +109,7 @@ func main() {
 	outboundHandler := handlers.NewOutboundHandler(inbSvc)
 	subHandler := handlers.NewSubscriptionHandler(inbSvc, cfg.ServerHost)
 	trafficHandler := handlers.NewTrafficHandler(liveMonitor)
+	diagnosticsHandler := handlers.NewDiagnosticsHandler(inbSvc)
 
 	r := gin.Default()
 	// gin trusts every proxy by default, which makes X-Forwarded-For — and so the
@@ -152,6 +153,7 @@ func main() {
 		authed.DELETE("/outbounds/:id", outboundHandler.Delete)
 
 		authed.GET("/traffic/live", trafficHandler.Live)
+		authed.GET("/traffic/diagnostics/outbounds", diagnosticsHandler.Outbounds)
 	}
 
 	r.GET("/sub/:token", subHandler.Get)

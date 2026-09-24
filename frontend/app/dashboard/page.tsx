@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { startSingbox, stopSingbox, applySingbox, SingboxStatus } from "@/lib/api";
-import { useStatus, useLiveTraffic, useInbounds, useOutbounds, useUsers } from "@/lib/hooks";
+import { useStatus, useLiveTraffic, useInbounds, useOutbounds, useUsers, useOutboundProbes } from "@/lib/hooks";
 import { formatBytes } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/stat-card";
-import { ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowUp, ArrowDown, Activity } from "lucide-react";
 
 export default function DashboardPage() {
   const { data: status, mutate: mutateStatus } = useStatus();
@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const { data: inbounds } = useInbounds();
   const { data: outbounds } = useOutbounds();
   const { data: users } = useUsers();
+  const { data: probes = [], mutate: refreshProbes } = useOutboundProbes();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -140,6 +141,34 @@ export default function DashboardPage() {
                 <p className="mt-1 text-2xl font-normal tabular-nums">{formatBytes(live.down)}/s</p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-lg">
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
+              上游线路检测
+            </CardTitle>
+            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => refreshProbes()}>
+              <Activity className="size-3" />重新检测
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {probes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">暂无已配置的上游出站。</p>
+            ) : (
+              <div className="space-y-3">
+                {probes.map((p) => (
+                  <div key={p.tag} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="truncate font-mono">{p.tag}</span>
+                    <span className={p.reachable ? "text-foreground" : "text-destructive"}>
+                      {p.reachable ? `${p.latencyMs ?? 0} ms` : "不可达"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="mt-4 text-xs text-muted-foreground">仅表示 VPS 到上游服务器的 TCP 建连时间，不代表客户端上传质量。</p>
           </CardContent>
         </Card>
       </div>

@@ -87,6 +87,14 @@ func toInt(v any) (int, bool) {
 
 func (hysteria2) CredentialKind() string { return "password" }
 
+func (hysteria2) Schema() []Field {
+	return []Field{
+		{Name: "serverName", Label: "SNI", Type: "text", Default: "bing.com", Required: true},
+		{Name: "upMbps", Label: "上行 Mbps", Type: "number", Default: 100},
+		{Name: "downMbps", Label: "下行 Mbps", Type: "number", Default: 100},
+	}
+}
+
 func (hysteria2) UpdateSettings(existing string, params map[string]any) (string, error) {
 	var s hy2Settings
 	if err := json.Unmarshal([]byte(existing), &s); err != nil {

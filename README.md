@@ -40,7 +40,9 @@ make run            # 打开 http://localhost:8080
 - 面板启动时，如果已生成配置且面板管理的 sing-box 未运行，会自动启动它；配置错误、端口冲突或二进制缺失时，面板只记录错误并继续启动，方便从 UI 排查。
 - 给用户分配出站后，路由顺序为：私网地址直连 → 中国大陆域名/IP 直连 → 其余目的地走该用户的出站。未分配出站的用户仍全部直连。
 - 中国大陆识别使用官方 SagerNet 远程 `geosite-cn` 与 `geoip-cn` 二进制规则集，sing-box 每 7 天经直连更新一次；国内域名 DNS 也优先走本地/direct 解析。首次启动需要 VPS 能访问 GitHub Raw 下载规则集。
-- 复制的订阅配置面向 Mihomo / Clash.Meta：客户端先按 `GEOSITE,CN,DIRECT` 与 `GEOIP,CN,DIRECT,no-resolve` 直连国内目标，其余才走「节点」到 VPS；VPS 侧仍保留同样规则，作为客户端未分流时的兜底。
+- 复制的订阅配置面向 Mihomo / Clash.Meta：配置显式使用 `mode: rule`，客户端先按 `GEOSITE,CN,DIRECT` 与 `GEOIP,CN,DIRECT` 直连国内目标，因此国内网站会看到客户端本机公网 IP；其余目标和外部 DNS 走「节点」到 VPS，失败时不会回退直连。订阅还启用加密 DNS、fake-ip、严格 TUN 路由并拒绝 IPv6，以减少应用绕过系统代理造成的泄露；客户端未授权 TUN、应用排除或关闭代理时无法由订阅单独兜底。
+- 一个用户绑定多个入站时，订阅会生成「自动选择」和「故障切换」组；面板的「上游线路检测」只测 VPS 到出站服务器的 TCP 建连延迟，不等于客户端上传或 UDP 质量。
+- 入站表单由后端协议 schema 驱动，目前支持 VLESS-Reality、Hysteria2、Trojan、AnyTLS；AnyTLS 需要 sing-box 1.12.0+。删除仍被用户使用的出站会被拒绝，必须先改派用户，防止意外回落到直连。
 
 | `DEFAULT_ADMIN_USER` | `admin` | 初始管理员用户名（仅首次、表为空时写入） |
 | `DEFAULT_ADMIN_PASS` | `mnice7082` | 初始管理员密码 |
