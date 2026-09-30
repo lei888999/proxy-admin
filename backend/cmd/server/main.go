@@ -42,6 +42,9 @@ const (
 
 func main() {
 	cfg := config.Load()
+	if err := config.PersistJWTSecret(cfg); err != nil {
+		log.Printf("WARN: could not persist generated JWT secret: %v", err)
+	}
 
 	db, err := database.Init(cfg.DBPath, cfg.DefaultAdminUser, cfg.DefaultAdminPass)
 	if err != nil {
@@ -91,6 +94,9 @@ func main() {
 	if err := inbSvc.BackfillUserTokens(); err != nil {
 		log.Printf("WARN: backfill tokens: %v", err)
 	}
+	if err := inbSvc.MigrateClientRouting(); err != nil {
+		log.Printf("WARN: migrate client routing: %v", err)
+	}
 	startManagedSingbox(sbSvc)
 
 	clashClient := traffic.NewClashClient(exp.ClashAddr, exp.ClashSecret)
@@ -110,6 +116,7 @@ func main() {
 	subHandler := handlers.NewSubscriptionHandler(inbSvc, cfg.ServerHost)
 	trafficHandler := handlers.NewTrafficHandler(liveMonitor)
 	diagnosticsHandler := handlers.NewDiagnosticsHandler(inbSvc)
+	routingHandler := handlers.NewRoutingHandler(inbSvc)
 
 	r := gin.Default()
 	// gin trusts every proxy by default, which makes X-Forwarded-For — and so the
@@ -154,6 +161,8 @@ func main() {
 
 		authed.GET("/traffic/live", trafficHandler.Live)
 		authed.GET("/traffic/diagnostics/outbounds", diagnosticsHandler.Outbounds)
+		authed.GET("/routing/rules", routingHandler.List)
+		authed.PUT("/routing/rules", routingHandler.Save)
 	}
 
 	r.GET("/sub/:token", subHandler.Get)

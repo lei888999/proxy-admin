@@ -33,15 +33,18 @@ make run            # 打开 http://localhost:8080
 | --- | --- | --- |
 | `PORT` | `8080` | 面板监听端口 |
 | `DB_PATH` | `sing-box-admin.db` | SQLite 数据库路径（启动时会被收紧为 0600） |
-| `JWT_SECRET` | 随机生成 | 签名会话 Cookie 的密钥；**生产必须设置**，否则每次重启会话都会失效 |
+| `JWT_SECRET` | 自动生成并持久化 | 签名会话 Cookie 的密钥；生产仍建议显式设置，未设置时会保存到 `DB_PATH.jwt-secret`（0600） |
 
 ## 启动与路由行为
 
 - 面板启动时，如果已生成配置且面板管理的 sing-box 未运行，会自动启动它；配置错误、端口冲突或二进制缺失时，面板只记录错误并继续启动，方便从 UI 排查。
-- 给用户分配出站后，路由顺序为：私网地址直连 → 中国大陆域名/IP 直连 → 其余目的地走该用户的出站。未分配出站的用户仍全部直连。
-- 中国大陆识别使用官方 SagerNet 远程 `geosite-cn` 与 `geoip-cn` 二进制规则集，sing-box 每 7 天经直连更新一次；国内域名 DNS 也优先走本地/direct 解析。首次启动需要 VPS 能访问 GitHub Raw 下载规则集。
+- 服务端只按用户绑定的出口转发：已分配出站的用户全部走该上游，未分配的用户走 VPS 本身出口；保留用户流量归属和 DNS 出口绑定。服务端不再判断私网、中国大陆、Gemini 或自定义目的地，也不下载大陆规则集。升级首次启动会重新生成一次服务端配置，清除旧分流规则。
+- 配置页的自定义分流仅写入客户端订阅，策略为 `DIRECT`（本机直连）、`REJECT`、节点、自动选择或故障切换。保存不会重启 sing-box；客户端需更新订阅。旧域名规则迁移为 `DOMAIN-SUFFIX`，旧服务器上游标签迁移为「节点」（实际上游仍由用户绑定决定），不会把服务器上游密码下发给客户端。
+- 支持域名完整/后缀/关键字/通配符/正则、GEOSITE、GEOIP、IP-CIDR/CIDR6、IP-ASN、来源 IP/ASN/国家、端口、进程名称/路径及通配符/正则、NETWORK、UID、DSCP、RULE-SET、MATCH。目标 IP 类规则支持 `no-resolve`，规则可上下排序；校验失败不保存。
+- `RULE-SET` 同时配置 HTTPS 来源、behavior（domain/ipcidr/classical）和 format（yaml/text/mrs），订阅生成对应 `rule-providers`，客户端经「节点」每 24 小时下载；MRS 不支持 classical。暂不提供 AND/OR/NOT、SUB-RULE 编辑器。进程、UID、DSCP 等规则受客户端平台/权限限制。
+- 客户端顺序：服务器地址直连 → IPv6 阻断 → 自定义规则 → Gemini 代理 → 私网/大陆直连 → MATCH。自定义 MATCH 必须最后一条，用于替换内置兜底；默认仍为「节点」。显式选择 DIRECT 将允许相应流量直接访问并暴露本机公网 IP。
 - 复制的订阅配置面向 Mihomo / Clash.Meta：配置显式使用 `mode: rule`，客户端先按 `GEOSITE,CN,DIRECT` 与 `GEOIP,CN,DIRECT` 直连国内目标，因此国内网站会看到客户端本机公网 IP；其余目标和外部 DNS 走「节点」到 VPS，失败时不会回退直连。订阅还启用加密 DNS、fake-ip、严格 TUN 路由并拒绝 IPv6，以减少应用绕过系统代理造成的泄露；客户端未授权 TUN、应用排除或关闭代理时无法由订阅单独兜底。
-- 一个用户绑定多个入站时，订阅会生成「自动选择」和「故障切换」组；面板的「上游线路检测」只测 VPS 到出站服务器的 TCP 建连延迟，不等于客户端上传或 UDP 质量。
+- 所有有效订阅均生成「自动选择」和「故障切换」组（单节点也保留组，保证策略引用有效）；面板的「上游线路检测」只测 VPS 到出站服务器的 TCP 建连延迟，不等于客户端上传或 UDP 质量。
 - 入站表单由后端协议 schema 驱动，目前支持 VLESS-Reality、Hysteria2、Trojan、AnyTLS；AnyTLS 需要 sing-box 1.12.0+。删除仍被用户使用的出站会被拒绝，必须先改派用户，防止意外回落到直连。
 
 | `DEFAULT_ADMIN_USER` | `admin` | 初始管理员用户名（仅首次、表为空时写入） |

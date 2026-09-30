@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -53,5 +54,26 @@ func TestSingboxFromEnv(t *testing.T) {
 	c := Load()
 	if c.SingboxDir != "/data/singbox" || c.SingboxBin != "/usr/local/bin/sing-box" {
 		t.Fatalf("got %q / %q", c.SingboxDir, c.SingboxBin)
+	}
+}
+
+func TestPersistedJWTSecretSurvivesReload(t *testing.T) {
+	os.Clearenv()
+	dbPath := filepath.Join(t.TempDir(), "data", "admin.db")
+	os.Setenv("DB_PATH", dbPath)
+	first := Load()
+	if err := PersistJWTSecret(first); err != nil {
+		t.Fatalf("PersistJWTSecret: %v", err)
+	}
+	second := Load()
+	if second.JWTSecret != first.JWTSecret {
+		t.Fatalf("secret changed across reload: %q != %q", first.JWTSecret, second.JWTSecret)
+	}
+	info, err := os.Stat(dbPath + ".jwt-secret")
+	if err != nil {
+		t.Fatalf("secret file: %v", err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Fatalf("secret file mode=%o, want 600", info.Mode().Perm())
 	}
 }

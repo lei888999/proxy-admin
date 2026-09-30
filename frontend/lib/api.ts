@@ -174,6 +174,30 @@ export interface OutboundProbe {
   error?: string;
 }
 
+export interface RouteRule {
+  type: string;
+  value: string;
+  policy: string;
+  noResolve?: boolean;
+  provider?: { url: string; behavior: string; format: string };
+}
+
+export async function listRouteRules(): Promise<RouteRule[]> {
+  const res = await request("/api/routing/rules");
+  if (!res.ok) throw new Error("加载分流规则失败");
+  return res.json();
+}
+
+export async function saveRouteRules(rules: RouteRule[]): Promise<{ ok: boolean }> {
+  const res = await request("/api/routing/rules", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rules),
+  });
+  if (!res.ok) throw await errorFrom(res, "保存分流规则失败");
+  return mutationJSON<{ ok: boolean }>(res);
+}
+
 export async function probeOutbounds(): Promise<OutboundProbe[]> {
   const res = await request("/api/traffic/diagnostics/outbounds");
   if (!res.ok) throw await errorFrom(res, "线路检测失败");

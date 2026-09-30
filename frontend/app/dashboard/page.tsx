@@ -8,7 +8,7 @@ import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/stat-card";
-import { ArrowUp, ArrowDown, Activity } from "lucide-react";
+import { ArrowUp, ArrowDown, Activity, Loader2 } from "lucide-react";
 
 export default function DashboardPage() {
   const { data: status, mutate: mutateStatus } = useStatus();
@@ -16,8 +16,8 @@ export default function DashboardPage() {
   const { data: inbounds } = useInbounds();
   const { data: outbounds } = useOutbounds();
   const { data: users } = useUsers();
-  const { data: probes = [], mutate: refreshProbes } = useOutboundProbes();
-  const [busy, setBusy] = useState(false);
+  const { data: probes = [], mutate: refreshProbes, isValidating: probesLoading } = useOutboundProbes();
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const counts = {
@@ -26,15 +26,15 @@ export default function DashboardPage() {
     users: users?.length ?? 0,
   };
 
-  async function run(action: () => Promise<SingboxStatus>) {
-    setBusy(true);
+  async function run(name: string, action: () => Promise<SingboxStatus>) {
+    setBusy(name);
     setError("");
     try {
       mutateStatus(await action(), { revalidate: false });
     } catch (e) {
       setError(e instanceof Error ? e.message : "操作失败");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -93,26 +93,26 @@ export default function DashboardPage() {
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Button
                     className="rounded-full"
-                    disabled={busy || !status.installed || !status.hasConfig || status.running}
-                    onClick={() => run(startSingbox)}
+                    disabled={!!busy || !status.installed || !status.hasConfig || status.running}
+                    onClick={() => run("start", startSingbox)}
                   >
-                    启动
+                    {busy === "start" && <Loader2 className="animate-spin" />} {busy === "start" ? "启动中…" : "启动"}
                   </Button>
                   <Button
                     variant="outline"
                     className="rounded-full"
-                    disabled={busy || !status.running}
-                    onClick={() => run(stopSingbox)}
+                    disabled={!!busy || !status.running}
+                    onClick={() => run("stop", stopSingbox)}
                   >
-                    停止
+                    {busy === "stop" && <Loader2 className="animate-spin" />} {busy === "stop" ? "停止中…" : "停止"}
                   </Button>
                   <Button
                     variant="outline"
                     className="rounded-full"
-                    disabled={busy || !status.installed}
-                    onClick={() => run(applySingbox)}
+                    disabled={!!busy || !status.installed}
+                    onClick={() => run("apply", applySingbox)}
                   >
-                    应用并重启
+                    {busy === "apply" && <Loader2 className="animate-spin" />} {busy === "apply" ? "应用中…" : "应用并重启"}
                   </Button>
                 </div>
               </>
@@ -149,8 +149,8 @@ export default function DashboardPage() {
             <CardTitle className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
               上游线路检测
             </CardTitle>
-            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => refreshProbes()}>
-              <Activity className="size-3" />重新检测
+            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => refreshProbes()} disabled={probesLoading}>
+              {probesLoading ? <Loader2 className="size-3 animate-spin" /> : <Activity className="size-3" />}{probesLoading ? "检测中…" : "重新检测"}
             </Button>
           </CardHeader>
           <CardContent>

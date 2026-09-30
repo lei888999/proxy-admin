@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -433,11 +434,63 @@ func (s *Service) ResetUserTraffic(id uint) error {
 }
 
 const (
-	metaClashAddr   = "clash_api_addr"
-	metaClashSecret = "clash_api_secret"
+	metaClashAddr     = "clash_api_addr"
+	metaClashSecret   = "clash_api_secret"
+	metaRouteRules    = "route_rules"
+	metaClientRouting = "client_routing_v1"
 
 	defaultClashAddr = "127.0.0.1:9090"
 )
+
+// MigrateClientRouting removes destination rules from existing installations
+// once. Mark success only after the regenerated configuration was applied.
+func (s *Service) MigrateClientRouting() error {
+	var m models.Meta
+	err := s.db.First(&m, "key = ?", metaClientRouting).Error
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	if err := s.Regenerate(); err != nil {
+		return err
+	}
+	return s.db.Save(&models.Meta{Key: metaClientRouting, Value: "1"}).Error
+}
+
+// RouteRules returns the client policy, migrating legacy domain rules on read.
+func (s *Service) RouteRules() ([]RouteRule, error) {
+	var m models.Meta
+	err := s.db.First(&m, "key = ?", metaRouteRules).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return []RouteRule{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var rules []RouteRule
+	if m.Value == "" {
+		return []RouteRule{}, nil
+	}
+	if err := json.Unmarshal([]byte(m.Value), &rules); err != nil {
+		return nil, err
+	}
+	return normalizeRouteRules(rules)
+}
+
+// SaveRouteRules changes subscription content only; it must not restart sing-box.
+func (s *Service) SaveRouteRules(rules []RouteRule) error {
+	normalized, err := normalizeRouteRules(rules)
+	if err != nil {
+		return err
+	}
+	b, err := json.Marshal(normalized)
+	if err != nil {
+		return err
+	}
+	return s.db.Save(&models.Meta{Key: metaRouteRules, Value: string(b)}).Error
+}
 
 // APIConfig returns the experimental API endpoints, generating + persisting
 // them in the meta table on first use so config and pollers stay in sync.

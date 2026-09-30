@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { fieldLabel } from "@/lib/field-labels";
 import { copyText } from "@/lib/utils";
-import { ArrowDownToLine, Copy, Pencil, KeyRound, Trash2, Plus } from "lucide-react";
+import { ArrowDownToLine, Copy, Pencil, KeyRound, Trash2, Plus, Loader2 } from "lucide-react";
 
 type FormState = {
   id?: number;
@@ -47,6 +47,7 @@ export default function InboundsPage() {
   const [warning, setWarning] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
 
   async function finishMutation(configApplyError: string | undefined, success: string) {
     setNotice(success);
@@ -109,6 +110,8 @@ export default function InboundsPage() {
 
   async function doReset() {
     if (!confirmReset) return;
+    if (actionBusy) return;
+    setActionBusy(`reset:${confirmReset.id}`);
     setError("");
     try {
       const res = await resetInboundKeys(confirmReset.id);
@@ -116,10 +119,14 @@ export default function InboundsPage() {
       await finishMutation(res.configApplyError, "入站密钥已重置。");
     } catch (err) {
       setError(err instanceof Error ? err.message : "重置密钥失败");
+    } finally {
+      setActionBusy(null);
     }
   }
   async function doDelete() {
     if (!confirmDelete) return;
+    if (actionBusy) return;
+    setActionBusy(`delete:${confirmDelete.id}`);
     setError("");
     try {
       const res = await deleteInbound(confirmDelete.id);
@@ -127,6 +134,8 @@ export default function InboundsPage() {
       await finishMutation(res.configApplyError, "入站已删除。");
     } catch (err) {
       setError(err instanceof Error ? err.message : "删除入站失败");
+    } finally {
+      setActionBusy(null);
     }
   }
 
@@ -155,10 +164,10 @@ export default function InboundsPage() {
                   <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="编辑" title="编辑" onClick={() => openEdit(ib)}>
                     <Pencil />
                   </Button>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="重置密钥" title="重置 reality 密钥 / 证书" onClick={() => setConfirmReset(ib)}>
+                  <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="重置密钥" title="重置 reality 密钥 / 证书" onClick={() => setConfirmReset(ib)} disabled={!!actionBusy || busy}>
                     <KeyRound />
                   </Button>
-                  <Button variant="ghost" size="icon" aria-label="删除" title="删除" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setConfirmDelete(ib)}>
+                  <Button variant="ghost" size="icon" aria-label="删除" title="删除" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setConfirmDelete(ib)} disabled={!!actionBusy || busy}>
                     <Trash2 />
                   </Button>
                 </div>
@@ -207,7 +216,7 @@ export default function InboundsPage() {
         )}
       </div>
 
-      <Modal open={form !== null} onClose={() => setForm(null)} title={isEdit ? "编辑入站" : "新建入站"}>
+      <Modal open={form !== null} onClose={() => { if (!busy) setForm(null); }} title={isEdit ? "编辑入站" : "新建入站"}>
         {form && (
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
@@ -248,29 +257,29 @@ export default function InboundsPage() {
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="outline" className="rounded-full" onClick={() => setForm(null)}>取消</Button>
-              <Button type="submit" className="rounded-full" disabled={busy}>{isEdit ? "保存" : "创建"}</Button>
+              <Button type="submit" className="rounded-full" disabled={busy}>{busy && <Loader2 className="animate-spin" />}{busy ? "提交中…" : isEdit ? "保存" : "创建"}</Button>
             </div>
           </form>
         )}
       </Modal>
 
-      <Modal open={confirmReset !== null} onClose={() => setConfirmReset(null)} title="重置密钥">
+      <Modal open={confirmReset !== null} onClose={() => { if (!actionBusy) setConfirmReset(null); }} title="重置密钥">
         <p className="mb-4 text-sm text-muted-foreground">
           重置后会生成新的 reality 密钥 / 证书，已分发的旧客户端将失效。确定继续？
         </p>
         <div className="flex justify-end gap-3">
-          <Button variant="outline" className="rounded-full" onClick={() => setConfirmReset(null)}>取消</Button>
-          <Button className="rounded-full" onClick={doReset}>确认重置</Button>
+          <Button variant="outline" className="rounded-full" onClick={() => setConfirmReset(null)} disabled={!!actionBusy}>取消</Button>
+          <Button className="rounded-full" onClick={doReset} disabled={!!actionBusy}>{actionBusy && <Loader2 className="animate-spin" />}{actionBusy ? "重置中…" : "确认重置"}</Button>
         </div>
       </Modal>
 
-      <Modal open={confirmDelete !== null} onClose={() => setConfirmDelete(null)} title="删除入站">
+      <Modal open={confirmDelete !== null} onClose={() => { if (!actionBusy) setConfirmDelete(null); }} title="删除入站">
         <p className="mb-4 text-sm text-muted-foreground">
           确定删除入站 <span className="font-mono">{confirmDelete?.tag}</span>？此操作不可撤销。
         </p>
         <div className="flex justify-end gap-3">
-          <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(null)}>取消</Button>
-          <Button className="rounded-full" onClick={doDelete}>确认删除</Button>
+          <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(null)} disabled={!!actionBusy}>取消</Button>
+          <Button className="rounded-full" onClick={doDelete} disabled={!!actionBusy}>{actionBusy && <Loader2 className="animate-spin" />}{actionBusy ? "删除中…" : "确认删除"}</Button>
         </div>
       </Modal>
     </AppShell>

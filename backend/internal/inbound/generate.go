@@ -13,18 +13,8 @@ import (
 // outbound. An IP literal avoids a bootstrap-resolve loop.
 const dnsResolverServer = "1.1.1.1"
 
-// Official SagerNet binary rule sets. A user assigned an outbound first matches
-// private destinations and China domains/IPs to direct, then uses the outbound
-// for the remainder. Remote rule sets stay fresh without baking a large database
-// into this small control-plane binary.
-const (
-	geositeCNTag = "geosite-cn"
-	geoipCNTag   = "geoip-cn"
-
-	geositeCNURL = "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs"
-	geoipCNURL   = "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs"
-)
-
+// Generate builds only protocol listeners and per-user egress bindings.
+// All destination matching lives in the client subscription.
 func Generate(inbounds []models.Inbound, outbounds []models.Outbound, exp ExperimentalConfig) (string, error) {
 	tagByID := map[uint]string{}
 	for _, o := range outbounds {
@@ -78,11 +68,7 @@ func Generate(inbounds []models.Inbound, outbounds []models.Outbound, exp Experi
 		obs = append(obs, ob)
 	}
 
-	// Every route rule keeps auth_user in it. In addition to selecting a user's
-	// path, that makes Clash's connection rule string contain `auth_user=u<id>`,
-	// which the traffic sampler needs for per-user attribution. Rule order is
-	// significant: for users assigned an outbound, private + China matches must
-	// run before the catch-all outbound rule.
+	// Retain auth_user for traffic attribution, without destination exceptions.
 	userIDs := make([]uint, 0, len(allUsers))
 	for uid := range allUsers {
 		userIDs = append(userIDs, uid)
@@ -90,33 +76,12 @@ func Generate(inbounds []models.Inbound, outbounds []models.Outbound, exp Experi
 	sort.Slice(userIDs, func(i, j int) bool { return userIDs[i] < userIDs[j] })
 	routeRules := []map[string]any{}
 	for _, uid := range userIDs {
-		authUser := []string{fmt.Sprintf("u%d", uid)}
 		tag := userOutbound[uid]
 		if tag == "" {
-			// No assigned outbound has always meant direct; retain one explicit
-			// user rule so its traffic remains attributable.
-			routeRules = append(routeRules, map[string]any{"auth_user": authUser, "outbound": "direct"})
-			continue
+			tag = "direct"
 		}
-		// Never proxy LAN/private destinations through a user's overseas
-		// upstream. These rules deliberately precede the China rule and the
-		// user's catch-all.
 		routeRules = append(routeRules, map[string]any{
-			"auth_user":     authUser,
-			"ip_is_private": true,
-			"outbound":      "direct",
-		})
-		// A rule_set array is OR-ed by sing-box: either a matching China domain
-		// or China IP is direct. URL-bearing traffic can match geosite; clients
-		// that connect to an IP are covered by geoip.
-		routeRules = append(routeRules, map[string]any{
-			"auth_user": authUser,
-			"rule_set":  []string{geositeCNTag, geoipCNTag},
-			"outbound":  "direct",
-		})
-		routeRules = append(routeRules, map[string]any{
-			"auth_user": authUser,
-			"outbound":  tag,
+			"auth_user": []string{fmt.Sprintf("u%d", uid)}, "outbound": tag,
 		})
 	}
 
@@ -133,18 +98,14 @@ func Generate(inbounds []models.Inbound, outbounds []models.Outbound, exp Experi
 	}
 	sort.Strings(tags)
 	dnsServers := []map[string]any{{"type": "local", "tag": "local"}}
-	// Resolve China domains locally/directly before the per-user foreign DNS
-	// rules below. The route rule set handles the resulting traffic too; this
-	// avoids sending domestic lookups through an overseas upstream unnecessarily.
-	dnsRules := []map[string]any{{
-		"rule_set": []string{geositeCNTag},
-		"server":   "local",
-	}}
+	dnsRules := []map[string]any{}
 	for _, tag := range tags {
 		users := usersByTag[tag]
 		sort.Strings(users)
 		dnsServers = append(dnsServers, map[string]any{"type": "tls", "tag": "dns-" + tag, "server": dnsResolverServer, "detour": tag})
-		dnsRules = append(dnsRules, map[string]any{"auth_user": users, "server": "dns-" + tag})
+		if len(users) > 0 {
+			dnsRules = append(dnsRules, map[string]any{"auth_user": users, "server": "dns-" + tag})
+		}
 	}
 
 	cfg := map[string]any{
@@ -157,24 +118,6 @@ func Generate(inbounds []models.Inbound, outbounds []models.Outbound, exp Experi
 		"inbounds":  ins,
 		"outbounds": obs,
 		"route": map[string]any{
-			"rule_set": []map[string]any{
-				{
-					"type":            "remote",
-					"tag":             geositeCNTag,
-					"format":          "binary",
-					"url":             geositeCNURL,
-					"download_detour": "direct",
-					"update_interval": "7d",
-				},
-				{
-					"type":            "remote",
-					"tag":             geoipCNTag,
-					"format":          "binary",
-					"url":             geoipCNURL,
-					"download_detour": "direct",
-					"update_interval": "7d",
-				},
-			},
 			"rules": routeRules,
 			"final": "direct",
 			// sing-box >= 1.12 requires a resolver for outbounds that dial by

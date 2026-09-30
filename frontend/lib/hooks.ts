@@ -10,6 +10,7 @@ import {
   getConfig,
   getLiveTraffic,
   probeOutbounds,
+  listRouteRules,
 } from "@/lib/api";
 
 // Stable cache keys, one per GET endpoint. Mutations revalidate by these.
@@ -22,6 +23,7 @@ export const KEYS = {
   config: "config",
   liveTraffic: "live-traffic",
   outboundProbes: "outbound-probes",
+  routeRules: "route-rules",
 } as const;
 
 // dedupingInterval:0 keeps the cache (instant render on revisit + background
@@ -53,8 +55,17 @@ export function useLiveTraffic() {
 export function useOutboundProbes() {
   return useSWR(KEYS.outboundProbes, probeOutbounds, common);
 }
+export function useRouteRules() {
+  return useSWR(KEYS.routeRules, listRouteRules, common);
+}
 
 // revalidate revalidates one cache key from anywhere (used after mutations).
 export function revalidate(key: string) {
   return mutate(key);
+}
+
+// A 401 is cached by SWR like any other error. Clear it after a successful
+// login so the shell does not immediately redirect again using stale auth data.
+export function clearSessionCache() {
+  return mutate(() => true, undefined, { revalidate: false });
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -41,11 +42,62 @@ func Load() *Config {
 		TrustedProxies:   listenv("TRUSTED_PROXIES"),
 	}
 	if c.JWTSecret == "" {
-		c.JWTSecret = randomHex(32)
-		log.Println("WARN: JWT_SECRET not set, generated a random one (sessions reset on restart)")
+		if persisted, err := readPersistedJWTSecret(c.DBPath); err == nil && persisted != "" {
+			c.JWTSecret = persisted
+			log.Printf("WARN: JWT_SECRET not set, using the persisted session secret beside %s", c.DBPath)
+		} else {
+			c.JWTSecret = randomHex(32)
+			log.Println("WARN: JWT_SECRET not set, generated a random one; it will be persisted beside the database")
+		}
 	}
 	return c
 }
+
+// PersistJWTSecret keeps automatically generated session keys stable across
+// restarts. Explicit JWT_SECRET remains the preferred deployment setting and
+// is never written here.
+func PersistJWTSecret(c *Config) error {
+	if c == nil || c.JWTSecret == "" || os.Getenv("JWT_SECRET") != "" || isMemoryDB(c.DBPath) {
+		return nil
+	}
+	path := jwtSecretPath(c.DBPath)
+	if existing, err := os.ReadFile(path); err == nil && strings.TrimSpace(string(existing)) != "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if os.IsExist(err) {
+		if existing, readErr := os.ReadFile(path); readErr == nil && strings.TrimSpace(string(existing)) != "" {
+			return os.Chmod(path, 0600)
+		}
+		f, err = os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0600)
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := f.WriteString(c.JWTSecret + "\n"); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+func readPersistedJWTSecret(dbPath string) (string, error) {
+	if isMemoryDB(dbPath) {
+		return "", os.ErrNotExist
+	}
+	b, err := os.ReadFile(jwtSecretPath(dbPath))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(b)), nil
+}
+
+func jwtSecretPath(dbPath string) string { return dbPath + ".jwt-secret" }
+
+func isMemoryDB(dbPath string) bool { return dbPath == "" || strings.Contains(dbPath, ":memory:") }
 
 func getenv(key, def string) string {
 	if v := os.Getenv(key); v != "" {

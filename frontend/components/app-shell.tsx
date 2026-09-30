@@ -27,6 +27,7 @@ import {
   ArrowUpFromLine,
   Users,
   SlidersHorizontal,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -237,6 +238,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               关闭
             </Button>
             <Button type="submit" className="rounded-full" disabled={pwBusy}>
+              {pwBusy && <Loader2 className="animate-spin" />}
               {pwBusy ? "提交中…" : "修改密码"}
             </Button>
           </div>

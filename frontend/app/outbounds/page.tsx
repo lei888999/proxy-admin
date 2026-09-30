@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Pencil, Trash2, ArrowUpFromLine, Plus } from "lucide-react";
+import { Pencil, Trash2, ArrowUpFromLine, Plus, Loader2 } from "lucide-react";
 
 type Form = { id?: number; type: string; tag: string; server: string; port: string; username: string; password: string };
 const empty: Form = { type: "socks5", tag: "", server: "", port: "1080", username: "", password: "" };
@@ -25,6 +25,7 @@ export default function OutboundsPage() {
   const [warning, setWarning] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
 
   async function finishMutation(configApplyError: string | undefined, success: string) {
     setNotice(success);
@@ -58,6 +59,8 @@ export default function OutboundsPage() {
 
   async function doDelete() {
     if (!confirmDelete) return;
+    if (actionBusy) return;
+    setActionBusy(`delete:${confirmDelete.id}`);
     setError("");
     try {
       const res = await deleteOutbound(confirmDelete.id);
@@ -65,6 +68,8 @@ export default function OutboundsPage() {
       await finishMutation(res.configApplyError, "出站已删除。");
     } catch (err) {
       setError(err instanceof Error ? err.message : "删除出站失败");
+    } finally {
+      setActionBusy(null);
     }
   }
 
@@ -104,7 +109,7 @@ export default function OutboundsPage() {
                     <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="编辑" onClick={() => { setError(""); setForm({ id: o.id, type: o.type, tag: o.tag, server: o.server, port: String(o.port), username: o.username, password: o.password }); }}>
                       <Pencil />
                     </Button>
-                    <Button variant="ghost" size="icon" aria-label="删除" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setConfirmDelete(o)}>
+                    <Button variant="ghost" size="icon" aria-label="删除" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setConfirmDelete(o)} disabled={!!actionBusy || busy}>
                       <Trash2 />
                     </Button>
                   </div>
@@ -127,7 +132,7 @@ export default function OutboundsPage() {
         </Table>
       </Card>
 
-      <Modal open={form !== null} onClose={() => setForm(null)} title={form?.id ? "编辑出站" : "新建出站"}>
+      <Modal open={form !== null} onClose={() => { if (!busy) setForm(null); }} title={form?.id ? "编辑出站" : "新建出站"}>
         {form && (
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
@@ -167,19 +172,19 @@ export default function OutboundsPage() {
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="outline" className="rounded-full" onClick={() => setForm(null)}>取消</Button>
-              <Button type="submit" className="rounded-full" disabled={busy}>{form.id ? "保存" : "创建"}</Button>
+              <Button type="submit" className="rounded-full" disabled={busy}>{busy && <Loader2 className="animate-spin" />}{busy ? "提交中…" : form.id ? "保存" : "创建"}</Button>
             </div>
           </form>
         )}
       </Modal>
 
-      <Modal open={confirmDelete !== null} onClose={() => setConfirmDelete(null)} title="删除出站">
+      <Modal open={confirmDelete !== null} onClose={() => { if (!actionBusy) setConfirmDelete(null); }} title="删除出站">
         <p className="mb-4 text-sm text-muted-foreground">
           确定删除出站 <span className="font-mono">{confirmDelete?.tag}</span>？仍被用户使用的出站需要先解除分配。
         </p>
         <div className="flex justify-end gap-3">
-          <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(null)}>取消</Button>
-          <Button className="rounded-full" onClick={doDelete}>确认删除</Button>
+          <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(null)} disabled={!!actionBusy}>取消</Button>
+          <Button className="rounded-full" onClick={doDelete} disabled={!!actionBusy}>{actionBusy && <Loader2 className="animate-spin" />}{actionBusy ? "删除中…" : "确认删除"}</Button>
         </div>
       </Modal>
     </AppShell>

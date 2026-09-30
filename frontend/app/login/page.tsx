@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/api";
+import { clearSessionCache } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +21,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(username, password);
+      clearSessionCache();
       router.push("/dashboard");
     } catch (err) {
       // Show the server's message so a throttled login says how long to wait

@@ -23,7 +23,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Copy, Pencil, KeyRound, RotateCcw, Trash2, Users as UsersIcon, Plus } from "lucide-react";
+import { Copy, Pencil, KeyRound, RotateCcw, Trash2, Users as UsersIcon, Plus, Loader2 } from "lucide-react";
 
 type Form = { id?: number; name: string; inboundIds: number[]; outboundId: number | null };
 
@@ -36,6 +36,7 @@ export default function UsersPage() {
   const [warning, setWarning] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<User | null>(null);
   const [confirmResetTraffic, setConfirmResetTraffic] = useState<User | null>(null);
 
@@ -74,16 +75,22 @@ export default function UsersPage() {
   }
 
   async function onReset(id: number) {
+    if (actionBusy) return;
+    setActionBusy(`reset:${id}`);
     setError("");
     try {
       const res = await resetUserCreds(id);
       await finishMutation(res.configApplyError, "用户凭证已重置。");
     } catch (err) {
       setError(err instanceof Error ? err.message : "重置凭证失败");
+    } finally {
+      setActionBusy(null);
     }
   }
   async function doDelete() {
     if (!confirmDelete) return;
+    if (actionBusy) return;
+    setActionBusy(`delete:${confirmDelete.id}`);
     setError("");
     try {
       const res = await deleteUser(confirmDelete.id);
@@ -91,10 +98,14 @@ export default function UsersPage() {
       await finishMutation(res.configApplyError, "用户已删除。");
     } catch (err) {
       setError(err instanceof Error ? err.message : "删除用户失败");
+    } finally {
+      setActionBusy(null);
     }
   }
   async function doResetTraffic() {
     if (!confirmResetTraffic) return;
+    if (actionBusy) return;
+    setActionBusy(`traffic:${confirmResetTraffic.id}`);
     setError("");
     try {
       await resetUserTraffic(confirmResetTraffic.id);
@@ -102,6 +113,8 @@ export default function UsersPage() {
       await finishMutation(undefined, "流量统计已清零。");
     } catch (err) {
       setError(err instanceof Error ? err.message : "重置流量失败");
+    } finally {
+      setActionBusy(null);
     }
   }
 
@@ -152,13 +165,13 @@ export default function UsersPage() {
                     <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="编辑" title="编辑" onClick={() => { setError(""); setForm({ id: u.id, name: u.name, inboundIds: u.inboundIds, outboundId: u.outboundId }); }}>
                       <Pencil />
                     </Button>
-                    <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="重置凭证" title="重置凭证（轮换 UUID/密码/订阅 token）" onClick={() => onReset(u.id)}>
-                      <KeyRound />
+                    <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="重置凭证" title="重置凭证（轮换 UUID/密码/订阅 token）" onClick={() => onReset(u.id)} disabled={!!actionBusy || busy}>
+                      {actionBusy === `reset:${u.id}` ? <Loader2 className="animate-spin" /> : <KeyRound />}
                     </Button>
-                    <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="重置流量" title="重置累计流量" onClick={() => setConfirmResetTraffic(u)}>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="重置流量" title="重置累计流量" onClick={() => setConfirmResetTraffic(u)} disabled={!!actionBusy || busy}>
                       <RotateCcw />
                     </Button>
-                    <Button variant="ghost" size="icon" aria-label="删除" title="删除" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setConfirmDelete(u)}>
+                    <Button variant="ghost" size="icon" aria-label="删除" title="删除" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setConfirmDelete(u)} disabled={!!actionBusy || busy}>
                       <Trash2 />
                     </Button>
                   </div>
@@ -185,7 +198,7 @@ export default function UsersPage() {
         </Table>
       </Card>
 
-      <Modal open={form !== null} onClose={() => setForm(null)} title={form?.id ? "编辑用户" : "新建用户"}>
+      <Modal open={form !== null} onClose={() => { if (!busy) setForm(null); }} title={form?.id ? "编辑用户" : "新建用户"}>
         {form && (
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
@@ -237,29 +250,29 @@ export default function UsersPage() {
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="outline" className="rounded-full" onClick={() => setForm(null)}>取消</Button>
-              <Button type="submit" className="rounded-full" disabled={busy}>{form.id ? "保存" : "创建"}</Button>
+              <Button type="submit" className="rounded-full" disabled={busy}>{busy && <Loader2 className="animate-spin" />}{busy ? "提交中…" : form.id ? "保存" : "创建"}</Button>
             </div>
           </form>
         )}
       </Modal>
 
-      <Modal open={confirmDelete !== null} onClose={() => setConfirmDelete(null)} title="删除用户">
+      <Modal open={confirmDelete !== null} onClose={() => { if (!actionBusy) setConfirmDelete(null); }} title="删除用户">
         <p className="mb-4 text-sm text-muted-foreground">
           确定删除用户 <span className="font-mono">{confirmDelete?.name}</span>？此操作不可撤销。
         </p>
         <div className="flex justify-end gap-3">
-          <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(null)}>取消</Button>
-          <Button className="rounded-full" onClick={doDelete}>确认删除</Button>
+          <Button variant="outline" className="rounded-full" onClick={() => setConfirmDelete(null)} disabled={!!actionBusy}>取消</Button>
+          <Button className="rounded-full" onClick={doDelete} disabled={!!actionBusy}>{actionBusy?.startsWith("delete:") && <Loader2 className="animate-spin" />}{actionBusy?.startsWith("delete:") ? "删除中…" : "确认删除"}</Button>
         </div>
       </Modal>
 
-      <Modal open={confirmResetTraffic !== null} onClose={() => setConfirmResetTraffic(null)} title="重置流量">
+      <Modal open={confirmResetTraffic !== null} onClose={() => { if (!actionBusy) setConfirmResetTraffic(null); }} title="重置流量">
         <p className="mb-4 text-sm text-muted-foreground">
           确定清零用户 <span className="font-mono">{confirmResetTraffic?.name}</span> 的累计流量？
         </p>
         <div className="flex justify-end gap-3">
-          <Button variant="outline" className="rounded-full" onClick={() => setConfirmResetTraffic(null)}>取消</Button>
-          <Button className="rounded-full" onClick={doResetTraffic}>确认重置</Button>
+          <Button variant="outline" className="rounded-full" onClick={() => setConfirmResetTraffic(null)} disabled={!!actionBusy}>取消</Button>
+          <Button className="rounded-full" onClick={doResetTraffic} disabled={!!actionBusy}>{actionBusy?.startsWith("traffic:") && <Loader2 className="animate-spin" />}{actionBusy?.startsWith("traffic:") ? "重置中…" : "确认重置"}</Button>
         </div>
       </Modal>
     </AppShell>

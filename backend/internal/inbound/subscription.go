@@ -45,19 +45,17 @@ func (s *Service) UserSubscription(subToken, serverHost string) (string, error) 
 
 	groupNames := append([]string(nil), names...)
 	groups := []map[string]any{}
-	if len(names) > 1 {
-		groups = append(groups,
-			map[string]any{
-				"name": "自动选择", "type": "url-test", "proxies": names,
-				"url": "https://www.gstatic.com/generate_204", "interval": 300,
-			},
-			map[string]any{
-				"name": "故障切换", "type": "fallback", "proxies": names,
-				"url": "https://www.gstatic.com/generate_204", "interval": 300,
-			},
-		)
-		groupNames = append([]string{"自动选择", "故障切换"}, groupNames...)
-	}
+	groups = append(groups,
+		map[string]any{
+			"name": "自动选择", "type": "url-test", "proxies": names,
+			"url": "https://www.gstatic.com/generate_204", "interval": 300,
+		},
+		map[string]any{
+			"name": "故障切换", "type": "fallback", "proxies": names,
+			"url": "https://www.gstatic.com/generate_204", "interval": 300,
+		},
+	)
+	groupNames = append([]string{"自动选择", "故障切换"}, groupNames...)
 	groups = append(groups, map[string]any{"name": "节点", "type": "select", "proxies": groupNames})
 	serverRule := "DOMAIN," + serverHost + ",DIRECT"
 	if ip := net.ParseIP(serverHost); ip != nil {
@@ -67,6 +65,43 @@ func (s *Service) UserSubscription(subToken, serverHost string) (string, error) 
 			serverRule = "IP-CIDR6," + ip.String() + "/128,DIRECT,no-resolve"
 		}
 	}
+	customRules, err := s.RouteRules()
+	if err != nil {
+		return "", err
+	}
+	// Endpoint access and IPv6 protection precede administrator overrides.
+	clientRules := []string{serverRule, "IP-CIDR6,::/0,REJECT,no-resolve"}
+	providers := map[string]any{}
+	fallback := "MATCH,节点"
+	for _, rule := range customRules {
+		if rule.Type == "MATCH" {
+			fallback = rule.clashRule()
+			continue
+		}
+		clientRules = append(clientRules, rule.clashRule())
+		if p := rule.Provider; p != nil {
+			providers[rule.Value] = map[string]any{
+				"type": "http", "url": p.URL, "behavior": p.Behavior, "format": p.Format,
+				"interval": 86400, "proxy": "节点",
+			}
+		}
+	}
+	// Keep Gemini's service domains ahead of GEOIP,CN so a broad domestic IP
+	// match cannot override the explicit proxy policy.
+	for _, domain := range geminiDomains {
+		clientRules = append(clientRules, "DOMAIN-SUFFIX,"+domain+",节点")
+	}
+	clientRules = append(clientRules,
+		"IP-CIDR,127.0.0.0/8,DIRECT,no-resolve",
+		"IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
+		"IP-CIDR,172.16.0.0/12,DIRECT,no-resolve",
+		"IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
+		"IP-CIDR,100.64.0.0/10,DIRECT,no-resolve",
+		"IP-CIDR,169.254.0.0/16,DIRECT,no-resolve",
+		"GEOSITE,CN,DIRECT",
+		"GEOIP,CN,DIRECT",
+		fallback,
+	)
 
 	cfg := map[string]any{
 		// Make imported profiles default to rule mode. If a client is switched to
@@ -101,22 +136,12 @@ func (s *Service) UserSubscription(subToken, serverHost string) (string, error) 
 		// this Hysteria2 subscription). GEOIP covers clients/apps that connect
 		// to an IP directly OR whose domain is absent from geosite-cn but resolves
 		// to a China IP. Do not use `no-resolve`: it prevents that latter fallback.
-		"rules": []string{
-			// The VPS endpoint must stay outside the tunnel. Otherwise a TUN client
-			// sends its own panel/proxy connection back through that same proxy,
-			// creating a loop that makes both the subscription and panel unreachable.
-			serverRule,
-			"IP-CIDR6,::/0,REJECT,no-resolve",
-			"IP-CIDR,127.0.0.0/8,DIRECT,no-resolve",
-			"IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
-			"IP-CIDR,172.16.0.0/12,DIRECT,no-resolve",
-			"IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
-			"IP-CIDR,100.64.0.0/10,DIRECT,no-resolve",
-			"IP-CIDR,169.254.0.0/16,DIRECT,no-resolve",
-			"GEOSITE,CN,DIRECT",
-			"GEOIP,CN,DIRECT",
-			"MATCH,节点",
-		},
+		// The VPS endpoint and explicit Gemini/custom rules must precede the
+		// domestic direct rules below.
+		"rules": clientRules,
+	}
+	if len(providers) > 0 {
+		cfg["rule-providers"] = providers
 	}
 	b, err := yaml.Marshal(cfg)
 	if err != nil {
