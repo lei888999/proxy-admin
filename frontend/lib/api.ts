@@ -345,3 +345,25 @@ export async function resetUserTraffic(id: number): Promise<void> {
   const res = await request(`/api/users/${id}/reset-traffic`, { method: "POST" });
   if (!res.ok) throw new Error("重置流量失败");
 }
+
+export interface ConnectionLog {
+  id: string;
+  time: string;
+  user: string;
+  inbound: string;
+  source: string;
+  target: string;
+  outbounds: { type: string; tag: string; target: string }[];
+  error: string;
+}
+export interface ConnectionLogs {
+  entries: ConnectionLog[];
+  available: boolean;
+  truncated: boolean;
+  updatedAt: string;
+}
+export async function getConnectionLogs(): Promise<ConnectionLogs> {
+  const res = await request("/api/logs/connections");
+  if (!res.ok) throw await errorFrom(res, "加载连接日志失败");
+  return res.json();
+}

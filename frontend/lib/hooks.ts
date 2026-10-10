@@ -11,6 +11,7 @@ import {
   getLiveTraffic,
   probeOutbounds,
   listRouteRules,
+  getConnectionLogs,
 } from "@/lib/api";
 
 // Stable cache keys, one per GET endpoint. Mutations revalidate by these.
@@ -24,6 +25,7 @@ export const KEYS = {
   liveTraffic: "live-traffic",
   outboundProbes: "outbound-probes",
   routeRules: "route-rules",
+  connectionLogs: "connection-logs",
 } as const;
 
 // dedupingInterval:0 keeps the cache (instant render on revisit + background
@@ -68,4 +70,8 @@ export function revalidate(key: string) {
 // login so the shell does not immediately redirect again using stale auth data.
 export function clearSessionCache() {
   return mutate(() => true, undefined, { revalidate: false });
+}
+
+export function useConnectionLogs(autoRefresh = true) {
+  return useSWR(KEYS.connectionLogs, getConnectionLogs, { ...common, refreshInterval: autoRefresh ? 3000 : 0 });
 }

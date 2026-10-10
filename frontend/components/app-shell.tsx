@@ -27,6 +27,7 @@ import {
   ArrowUpFromLine,
   Users,
   SlidersHorizontal,
+  ListFilter,
   Loader2,
   type LucideIcon,
 } from "lucide-react";
@@ -48,7 +49,7 @@ const NAV_GROUPS: { heading: string | null; items: NavItem[] }[] = [
   },
   {
     heading: "系统",
-    items: [{ href: "/config", label: "配置", icon: SlidersHorizontal }],
+    items: [{ href: "/config", label: "配置", icon: SlidersHorizontal }, { href: "/logs", label: "连接日志", icon: ListFilter }],
   },
 ];
 
@@ -59,6 +60,7 @@ const CRUMBS: Record<string, string[]> = {
   "/outbounds": ["代理", "出站"],
   "/users": ["代理", "用户"],
   "/config": ["系统", "配置"],
+  "/logs": ["系统", "连接日志"],
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
