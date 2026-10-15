@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 
@@ -522,6 +523,67 @@ func (s *Service) APIConfig() (ExperimentalConfig, error) {
 		return ExperimentalConfig{}, err
 	}
 	return ExperimentalConfig{ClashAddr: clashAddr, ClashSecret: secret}, nil
+}
+
+// SetClashAPIAddr persists an operator-selected, loopback-only Clash API
+// address. It is called at startup before config generation so the generated
+// sing-box config, traffic monitor and port reservation always agree.
+func (s *Service) SetClashAPIAddr(addr string) error {
+	if !isLoopbackAddr(addr) {
+		return fmt.Errorf("Clash API address must be loopback: %q", addr)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.db.Save(&models.Meta{Key: metaClashAddr, Value: addr}).Error
+}
+
+// EnsureClashAPIAvailable moves a stopped panel instance off an occupied local
+// Clash API port. The endpoint is panel-internal only, so this never touches an
+// external process that happened to claim the default 127.0.0.1:9090 first.
+// Call this only while the panel-managed process is stopped: a running managed
+// instance necessarily owns its configured address and must keep it.
+func (s *Service) EnsureClashAPIAvailable() (ExperimentalConfig, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	exp, err := s.APIConfig()
+	if err != nil {
+		return ExperimentalConfig{}, false, err
+	}
+	if !isLoopbackAddr(exp.ClashAddr) || clashAPIAddrAvailable(exp.ClashAddr) {
+		return exp, false, nil
+	}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return ExperimentalConfig{}, false, fmt.Errorf("allocate Clash API port: %w", err)
+	}
+	newAddr := listener.Addr().String()
+	if err := listener.Close(); err != nil {
+		return ExperimentalConfig{}, false, fmt.Errorf("release allocated Clash API port: %w", err)
+	}
+	if err := s.db.Model(&models.Meta{}).Where("key = ?", metaClashAddr).Update("value", newAddr).Error; err != nil {
+		return ExperimentalConfig{}, false, err
+	}
+	exp.ClashAddr = newAddr
+	return exp, true, nil
+}
+
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func clashAPIAddrAvailable(addr string) bool {
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return false
+	}
+	return listener.Close() == nil
 }
 
 // Regenerate rebuilds the sing-box config from the database and applies it.

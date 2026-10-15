@@ -4,8 +4,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -17,7 +19,10 @@ type Config struct {
 	DefaultAdminPass string
 	SingboxDir       string
 	SingboxBin       string
-	ServerHost       string
+	// ClashAPIAddr optionally pins sing-box's internal Clash API to an unused
+	// loopback address, e.g. 127.0.0.1:19090. It is never exposed publicly.
+	ClashAPIAddr string
+	ServerHost   string
 	// CookieSecure marks the session cookie Secure. Enable it whenever the panel
 	// is reachable over HTTPS (directly or behind a reverse proxy) — without it
 	// the 7-day admin session is sent in cleartext.
@@ -37,6 +42,7 @@ func Load() *Config {
 		DefaultAdminPass: getenv("DEFAULT_ADMIN_PASS", "mnice7082"),
 		SingboxDir:       getenv("SINGBOX_DIR", "./singbox"),
 		SingboxBin:       os.Getenv("SINGBOX_BIN"),
+		ClashAPIAddr:     loopbackTCPAddrEnv("CLASH_API_ADDR"),
 		ServerHost:       os.Getenv("SERVER_HOST"),
 		CookieSecure:     boolenv("COOKIE_SECURE", false),
 		TrustedProxies:   listenv("TRUSTED_PROXIES"),
@@ -104,6 +110,32 @@ func getenv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// loopbackTCPAddrEnv accepts only a numeric loopback host with a valid TCP
+// port. The Clash API is a panel-private control endpoint and must never bind
+// to the VPS public address through an environment-variable typo.
+func loopbackTCPAddrEnv(key string) string {
+	addr := strings.TrimSpace(os.Getenv(key))
+	if addr == "" {
+		return ""
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		log.Printf("WARN: ignoring %s=%q: expected loopback host:port", key, addr)
+		return ""
+	}
+	ip := net.ParseIP(host)
+	if ip == nil || !ip.IsLoopback() {
+		log.Printf("WARN: ignoring %s=%q: Clash API must bind to 127.0.0.1 or [::1]", key, addr)
+		return ""
+	}
+	p, err := strconv.ParseUint(port, 10, 16)
+	if err != nil || p == 0 {
+		log.Printf("WARN: ignoring %s=%q: invalid TCP port", key, addr)
+		return ""
+	}
+	return addr
 }
 
 func boolenv(key string, def bool) bool {

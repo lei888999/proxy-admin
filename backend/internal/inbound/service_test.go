@@ -1,6 +1,7 @@
 package inbound
 
 import (
+	"net"
 	"strings"
 	"testing"
 
@@ -48,6 +49,54 @@ func TestAPIConfigIdempotent(t *testing.T) {
 	}
 	if c1.ClashAddr != c2.ClashAddr {
 		t.Fatal("api address changed between calls")
+	}
+}
+
+func TestSetClashAPIAddrPersistsLoopbackAddress(t *testing.T) {
+	s, _ := newTestService(t)
+	const addr = "127.0.0.1:19090"
+	if err := s.SetClashAPIAddr(addr); err != nil {
+		t.Fatalf("SetClashAPIAddr: %v", err)
+	}
+	exp, err := s.APIConfig()
+	if err != nil {
+		t.Fatalf("APIConfig: %v", err)
+	}
+	if exp.ClashAddr != addr {
+		t.Fatalf("ClashAddr=%q, want %q", exp.ClashAddr, addr)
+	}
+}
+
+func TestEnsureClashAPIAvailableMovesOccupiedLoopbackAddress(t *testing.T) {
+	s, _ := newTestService(t)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	oldAddr := listener.Addr().String()
+	if err := s.db.Create(&models.Meta{Key: metaClashAddr, Value: oldAddr}).Error; err != nil {
+		t.Fatalf("store occupied address: %v", err)
+	}
+
+	exp, moved, err := s.EnsureClashAPIAvailable()
+	if err != nil {
+		t.Fatalf("EnsureClashAPIAvailable: %v", err)
+	}
+	if !moved {
+		t.Fatal("expected occupied address to be moved")
+	}
+	if exp.ClashAddr == oldAddr || !isLoopbackAddr(exp.ClashAddr) {
+		t.Fatalf("clash address=%q, want a new loopback address instead of %q", exp.ClashAddr, oldAddr)
+	}
+
+	var saved models.Meta
+	if err := s.db.First(&saved, "key = ?", metaClashAddr).Error; err != nil {
+		t.Fatalf("read saved address: %v", err)
+	}
+	if saved.Value != exp.ClashAddr {
+		t.Fatalf("saved address=%q, want %q", saved.Value, exp.ClashAddr)
 	}
 }
 

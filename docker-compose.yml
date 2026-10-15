@@ -23,6 +23,8 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       # Comma-separated proxy CIDRs/IPs allowed to supply X-Forwarded-For.
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      # Panel-private Clash API address for traffic stats. Must remain loopback.
+      CLASH_API_ADDR: ${CLASH_API_ADDR:-}
     volumes:
       - singbox_admin_data:/data
 

@@ -51,9 +51,21 @@ func TestSingboxFromEnv(t *testing.T) {
 	os.Clearenv()
 	os.Setenv("SINGBOX_DIR", "/data/singbox")
 	os.Setenv("SINGBOX_BIN", "/usr/local/bin/sing-box")
+	os.Setenv("CLASH_API_ADDR", "127.0.0.1:19090")
 	c := Load()
 	if c.SingboxDir != "/data/singbox" || c.SingboxBin != "/usr/local/bin/sing-box" {
 		t.Fatalf("got %q / %q", c.SingboxDir, c.SingboxBin)
+	}
+	if c.ClashAPIAddr != "127.0.0.1:19090" {
+		t.Fatalf("ClashAPIAddr = %q", c.ClashAPIAddr)
+	}
+}
+
+func TestLoadIgnoresPublicClashAPIAddress(t *testing.T) {
+	os.Clearenv()
+	os.Setenv("CLASH_API_ADDR", "0.0.0.0:19090")
+	if got := Load().ClashAPIAddr; got != "" {
+		t.Fatalf("ClashAPIAddr = %q, want empty", got)
 	}
 }
 

@@ -77,9 +77,28 @@ func main() {
 		inbSvc.ReservePort(uint16(p), "tcp", "面板端口")
 	}
 
+	if cfg.ClashAPIAddr != "" {
+		if err := inbSvc.SetClashAPIAddr(cfg.ClashAPIAddr); err != nil {
+			log.Fatalf("set Clash API address: %v", err)
+		}
+	}
+
 	exp, err := inbSvc.APIConfig()
 	if err != nil {
 		log.Fatalf("api config: %v", err)
+	}
+	// A stale or unrelated sing-box may already own the historical default
+	// 127.0.0.1:9090. Before the first config generation, move only our stopped
+	// panel instance to a free loopback port; never stop or adopt that process.
+	if !sbSvc.ManagedRunning() {
+		var moved bool
+		exp, moved, err = inbSvc.EnsureClashAPIAvailable()
+		if err != nil {
+			log.Fatalf("ensure Clash API port: %v", err)
+		}
+		if moved {
+			log.Printf("WARN: configured Clash API port was occupied; moved panel API to %s", exp.ClashAddr)
+		}
 	}
 	if p, ok := portOf(exp.ClashAddr); ok {
 		inbSvc.ReservePort(p, "tcp", "sing-box Clash API 端口")

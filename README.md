@@ -57,6 +57,7 @@ make run            # 打开 http://localhost:8080
 | `DEFAULT_ADMIN_PASS` | `mnice7082` | 初始管理员密码 |
 | `COOKIE_SECURE` | `false` | 会话 Cookie 是否带 `Secure`；**面板走 HTTPS 时必须开** |
 | `TRUSTED_PROXIES` | 空（谁都不信） | 可信反代列表（逗号分隔），影响登录限流所依据的客户端 IP |
+| `CLASH_API_ADDR` | `127.0.0.1:9090`（自动避让冲突） | 面板内部流量统计 API；可固定为未占用的回环 TCP 地址，如 `127.0.0.1:19090`，拒绝公网监听 |
 | `SERVER_HOST` | 请求 Host | 生成订阅时用的公网域名/IP |
 
 首次启动会自动创建默认管理员账号 `admin` / `mnice7082`。**这个默认密码写在本仓库里，等于公开**，登录后请立刻在右上角账户菜单 →「修改密码」改掉；改密会同时让其它设备上已登录的会话失效。
